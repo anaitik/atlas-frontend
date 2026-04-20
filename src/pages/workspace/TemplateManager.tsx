@@ -330,7 +330,7 @@ export function TemplateManager() {
       if (workspaceId) formData.append("workspace_id", workspaceId);
 
       const draft: any = await apiClient("/templates/generate", {
-        method: "POST", body: formData,
+        method: "POST", data: formData,
       });
 
       setGeneratedDraft(draft);
