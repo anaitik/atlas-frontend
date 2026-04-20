@@ -1,0 +1,237 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* ── Atlas Brand Palette ─────────────────────────── */
+  --color-atlas-900: #052e16;
+  --color-atlas-800: #0a3d1f;
+  --color-atlas-700: #14532d;
+  --color-atlas-600: #166534;
+  --color-atlas-500: #16a34a;
+  --color-atlas-400: #22c55e;
+  --color-atlas-300: #86efac;
+
+  /* ── Sidebar ─────────────────────────────────────── */
+  --color-sidebar-bg: #071a12;
+  --color-sidebar-surface: #0d2818;
+  --color-sidebar-border: #1a3a28;
+  --color-sidebar-text: #94b8a8;
+  --color-sidebar-text-dim: #5a7a6a;
+  --color-sidebar-active-bg: rgba(22, 101, 52, 0.35);
+  --color-sidebar-active-border: #22c55e;
+  --color-sidebar-hover: rgba(255, 255, 255, 0.04);
+
+  /* ── Content Area ────────────────────────────────── */
+  --color-page-bg: #f4f7f6;
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f8faf9;
+  --color-border: #e2e8f0;
+  --color-border-light: #f1f5f3;
+
+  /* ── Text ────────────────────────────────────────── */
+  --color-text-primary: #0f1d15;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+  --color-text-on-dark: #e8f4f0;
+  --color-text-on-green: #f0fdf4;
+
+  /* ── Semantic Colors ─────────────────────────────── */
+  --color-success: #16a34a;
+  --color-success-bg: #f0fdf4;
+  --color-success-border: #bbf7d0;
+  --color-warning: #d97706;
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+  --color-danger: #dc2626;
+  --color-danger-bg: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-info: #2563eb;
+  --color-info-bg: #eff6ff;
+  --color-info-border: #bfdbfe;
+}
+
+/* ── Base Reset ─────────────────────────────────── */
+@layer base {
+  :root {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--color-page-bg);
+    color: var(--color-text-primary);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Scrollbar styling for the app */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  /* Sidebar scrollbar */
+  .sidebar-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
+/* ── Utility Classes ────────────────────────────── */
+@layer utilities {
+  /* Cards */
+  .atlas-card {
+    @apply bg-surface border border-border rounded-xl shadow-sm;
+  }
+  .atlas-card-hover {
+    @apply hover:shadow-md hover:border-atlas-400/30 transition-all duration-200;
+  }
+  .atlas-card-interactive {
+    @apply bg-surface border border-border rounded-xl shadow-sm hover:shadow-md hover:border-atlas-400/30 transition-all duration-200 cursor-pointer;
+  }
+
+  /* Stat cards */
+  .atlas-stat {
+    @apply bg-surface border border-border rounded-xl p-5;
+  }
+
+  /* Section headers */
+  .atlas-eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-atlas-600;
+  }
+  .atlas-page-title {
+    @apply text-2xl font-bold text-text-primary tracking-tight;
+  }
+  .atlas-page-subtitle {
+    @apply text-sm text-text-secondary mt-1 leading-relaxed;
+  }
+
+  /* Badges */
+  .atlas-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide;
+  }
+  .atlas-badge-green {
+    @apply bg-success-bg text-success border border-success-border;
+  }
+  .atlas-badge-amber {
+    @apply bg-warning-bg text-warning border border-warning-border;
+  }
+  .atlas-badge-red {
+    @apply bg-danger-bg text-danger border border-danger-border;
+  }
+  .atlas-badge-blue {
+    @apply bg-info-bg text-info border border-info-border;
+  }
+  .atlas-badge-gray {
+    @apply bg-gray-100 text-gray-600 border border-gray-200;
+  }
+
+  /* Confidence bar */
+  .conf-track {
+    @apply h-1 bg-gray-200 rounded-full overflow-hidden flex-1;
+  }
+  .conf-fill-green {
+    @apply h-full rounded-full bg-success;
+  }
+  .conf-fill-amber {
+    @apply h-full rounded-full bg-warning;
+  }
+  .conf-fill-red {
+    @apply h-full rounded-full bg-danger;
+  }
+
+  /* Progress bars */
+  .atlas-progress-track {
+    @apply h-1.5 bg-gray-200 rounded-full overflow-hidden;
+  }
+  .atlas-progress-fill {
+    @apply h-full rounded-full bg-atlas-500 transition-all duration-500;
+  }
+
+  /* Inputs */
+  .atlas-input {
+    @apply w-full bg-white border border-border rounded-lg px-4 py-2.5 text-sm text-text-primary
+    placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-atlas-500/30
+    focus:border-atlas-500 transition-all;
+  }
+
+  /* Field cards (review stage) */
+  .atlas-field-card {
+    @apply bg-surface-secondary border border-border rounded-lg p-4;
+  }
+  .atlas-field-card-flagged {
+    @apply bg-warning-bg border-warning-border;
+  }
+
+  /* Upload zone */
+  .atlas-dropzone {
+    @apply border-2 border-dashed border-gray-300 rounded-xl p-6 text-center
+    transition-colors hover:border-atlas-400 hover:bg-atlas-300/5 cursor-pointer;
+  }
+
+  /* Tables */
+  .atlas-table {
+    @apply w-full text-sm;
+  }
+  .atlas-table th {
+    @apply text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted
+    px-4 py-3 border-b border-border bg-surface-secondary;
+  }
+  .atlas-table td {
+    @apply px-4 py-3 border-b border-border-light text-text-primary;
+  }
+  .atlas-table tr:last-child td {
+    @apply border-b-0;
+  }
+  .atlas-table tbody tr {
+    @apply hover:bg-surface-secondary transition-colors;
+  }
+
+  /* Narrative / insight cards */
+  .atlas-narrative {
+    @apply bg-atlas-900 text-text-on-green rounded-xl p-6;
+  }
+
+  /* Annotation / info blocks */
+  .atlas-annotation {
+    @apply bg-success-bg border border-success-border rounded-lg p-4 text-sm text-atlas-800 leading-relaxed;
+  }
+}
+
+/* ── Animations ─────────────────────────────────── */
+@keyframes atlas-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-atlas-in {
+  animation: atlas-fade-in 0.3s ease-out;
+}
+
+@keyframes atlas-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.animate-atlas-pulse {
+  animation: atlas-pulse 2s ease-in-out infinite;
+}
+
+@keyframes atlas-slide-in {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-atlas-slide {
+  animation: atlas-slide-in 0.25s ease-out;
+}
