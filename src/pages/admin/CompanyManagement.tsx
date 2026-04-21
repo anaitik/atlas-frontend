@@ -16,13 +16,14 @@ export function CompanyManagement() {
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [newCompanyName, setNewCompanyName] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
 
   const fetchCompanies = async () => {
     try {
       const res: any = await apiClient("/companies?page_size=50");
       setCompanies(res.data || []); 
     } catch (e) {
-      console.error(e);
+      console.error("Failed to fetch companies:", e);
     }
   };
 
@@ -31,18 +32,24 @@ export function CompanyManagement() {
   }, []);
 
   const handleCreate = async () => {
-    if (!newCompanyName) return;
+    if (!newCompanyName || isCreating) return;
+    
+    setIsCreating(true);
     try {
       await apiClient("/companies", {
         method: "POST",
         body: JSON.stringify({ name: newCompanyName })
       });
       setNewCompanyName("");
-      fetchCompanies();
-    } catch (e) {
-      console.error(e);
+      await fetchCompanies();
+    } catch (e: any) {
+      console.error("Provisioning failed:", e);
+      alert(`Failed to provision entity: ${e.message || "Unknown error"}`);
+    } finally {
+      setIsCreating(false);
     }
   };
+
 
   return (
     <div className="space-y-6">
@@ -59,7 +66,10 @@ export function CompanyManagement() {
             onChange={(e) => setNewCompanyName(e.target.value)}
             className="atlas-input w-64"
           />
-          <Button onClick={handleCreate}>Provision Entity</Button>
+          <Button onClick={handleCreate} disabled={isCreating}>
+            {isCreating ? "Provisioning..." : "Provision Entity"}
+          </Button>
+
         </div>
       </header>
 

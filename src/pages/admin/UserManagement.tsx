@@ -12,14 +12,15 @@ export function UserManagement() {
   const fetchData = async () => {
     try {
       const uData: any = await apiClient("/users?page_size=100");
-      setUsers(uData.items || uData || []);
+      setUsers(uData.data || []);
 
       const cData: any = await apiClient("/companies?page_size=100");
-      setCompanies(cData.items || cData || []);
+      setCompanies(cData.data || []);
     } catch (e) {
       console.error(e);
     }
   };
+
 
   useEffect(() => {
     fetchData();
