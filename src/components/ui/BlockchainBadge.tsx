@@ -106,7 +106,9 @@ export function BlockchainBadge({
                    <div>
                       <span className="block text-[11px] font-bold text-text-secondary uppercase mb-1">Transaction Hash</span>
                       <div className="bg-surface-secondary border border-border rounded px-3 py-2 text-text-muted text-[12px] italic">
-                        Transaction pending...
+                        {isVerified
+                          ? "Verified on-chain (transaction id unavailable for this artifact)."
+                          : "Transaction pending..."}
                       </div>
                    </div>
                  )}

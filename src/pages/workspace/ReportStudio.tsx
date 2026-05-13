@@ -1,7 +1,9 @@
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiClient } from "../../lib/api-client";
 import { BlockchainBadge } from "../../components/ui/BlockchainBadge";
+import { env } from "../../lib/env";
+
 // ── Types ────────────────────────────────────────────────────────────────────
 interface Question {
   id: string;
@@ -123,7 +125,7 @@ function SimpleMarkdown({ text }: { text: string }) {
           <p key={i} style={{ marginBottom: 14, whiteSpace: "pre-wrap" }}>
             {parts.map((part, j) => {
               if (part.startsWith('**') && part.endsWith('**')) {
-                return <strong key={j} style={{ color: "#0f2d17" }}>{part.slice(2, -2)}</strong>;
+                return <strong key={j} style={{ color: "var(--color-atlas-900)" }}>{part.slice(2, -2)}</strong>;
               }
               if (part.startsWith('*') && part.endsWith('*')) {
                 return <em key={j}>{part.slice(1, -1)}</em>;
@@ -189,25 +191,29 @@ function QuestionCard({
   const hasAnswer = answer.trim().length > 0;
   return (
     <div style={{
-      background: "white", border: `1px solid ${hasAnswer ? m.border : "#e2e8f0"}`,
-      borderRadius: 10, padding: "14px 16px", transition: "all 0.2s",
-      borderLeft: `3px solid ${hasAnswer ? m.color : "#e2e8f0"}`,
+      background: "white", 
+      border: `1px solid ${hasAnswer ? m.border : "var(--color-border)"}`,
+      borderRadius: 12, 
+      padding: "16px", 
+      transition: "all 0.2s ease",
+      borderLeft: `4px solid ${hasAnswer ? m.color : "var(--color-border)"}`,
+      boxShadow: hasAnswer ? `0 2px 8px -2px ${m.color}20` : "none",
     }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <PillarBadge pillar={q.pillar} />
           {q.category && (
-            <span style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8", padding: "2px 8px", background: "#f8fafc", borderRadius: 4, border: "1px solid #e2e8f0" }}>
-              {q.category}
+            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--color-text-muted)", padding: "2px 8px", background: "var(--color-surface-secondary)", borderRadius: 4, border: "1px solid var(--color-border-light)" }}>
+              {q.category.toUpperCase()}
             </span>
           )}
         </div>
-        {hasAnswer && <span className="material-symbols-outlined" style={{ fontSize: 16, color: m.color }}>check_circle</span>}
+        {hasAnswer && <span className="material-symbols-outlined" style={{ fontSize: 18, color: m.color }}>check_circle</span>}
       </div>
-      <p style={{ fontSize: 12, fontWeight: 600, color: "#1e293b", lineHeight: 1.5, marginBottom: 6 }}>{q.text}</p>
+      <p style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-primary)", lineHeight: 1.4, marginBottom: 8 }}>{q.text}</p>
       {q.hint && (
-        <p style={{ fontSize: 10, color: "#94a3b8", marginBottom: 8, fontStyle: "italic" }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 10, verticalAlign: "middle" }}>info</span>{" "}
+        <p style={{ fontSize: 11, color: "var(--color-text-muted)", marginBottom: 12, fontStyle: "italic", display: "flex", alignItems: "center", gap: 4 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>info</span>
           {q.hint}
         </p>
       )}
@@ -217,14 +223,30 @@ function QuestionCard({
         onChange={(e) => onChange(e.target.value)}
         placeholder="Add management commentary or evidence…"
         style={{
-          width: "100%", minHeight: 72, resize: "vertical",
-          background: "#f8fafc", border: `1px solid ${hasAnswer ? m.border : "#e2e8f0"}`,
-          borderRadius: 6, padding: "8px 10px", fontSize: 12, color: "#1e293b",
-          fontFamily: "inherit", lineHeight: 1.5, outline: "none",
-          transition: "border-color 0.15s",
+          width: "100%", 
+          minHeight: 80, 
+          resize: "vertical",
+          background: "var(--color-surface-secondary)", 
+          border: `1px solid ${hasAnswer ? m.border : "var(--color-border)"}`,
+          borderRadius: 8, 
+          padding: "10px 12px", 
+          fontSize: 12, 
+          color: "var(--color-text-primary)",
+          fontFamily: "inherit", 
+          lineHeight: 1.6, 
+          outline: "none",
+          transition: "all 0.15s",
         }}
-        onFocus={(e) => (e.target.style.borderColor = m.color)}
-        onBlur={(e) => (e.target.style.borderColor = hasAnswer ? m.border : "#e2e8f0")}
+        onFocus={(e) => {
+          e.target.style.borderColor = m.color;
+          e.target.style.background = "white";
+          e.target.style.boxShadow = `0 0 0 3px ${m.color}15`;
+        }}
+        onBlur={(e) => {
+          e.target.style.borderColor = hasAnswer ? m.border : "var(--color-border)";
+          e.target.style.background = "var(--color-surface-secondary)";
+          e.target.style.boxShadow = "none";
+        }}
       />
     </div>
   );
@@ -261,7 +283,7 @@ export function ReportStudio() {
     : reports[0];
 
   // ── Data Fetching ────────────────────────────────────────────────────────
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     if (!activeCompanyId) return;
     try {
       const res: any = await apiClient(`/reports?company_id=${activeCompanyId}&workspace_id=${workspaceId}`);
@@ -269,29 +291,37 @@ export function ReportStudio() {
       setReports(list);
       if (list.length > 0 && !selectedReportId) setSelectedReportId(list[0].id);
     } catch { /* silent */ }
-  };
+  }, [activeCompanyId, workspaceId, selectedReportId]);
 
-  const fetchQuestions = async () => {
+  const fetchQuestions = useCallback(async () => {
     try {
       const res: any = await apiClient(`/reports/questions`);
       setQuestions(res || []);
     } catch { /* silent */ }
-  };
+  }, []);
 
-  const fetchReportVerification = async (reportId: string) => {
+  const fetchReportVerification = useCallback(async (reportId: string) => {
     try {
       const res: any = await apiClient(`/reports/${reportId}/verification`);
       setReportVerifications((prev) => ({ ...prev, [reportId]: res }));
     } catch { /* silent */ }
-  };
-
-  useEffect(() => { fetchQuestions(); fetchReports(); }, [workspaceId, activeCompanyId]);
+  }, []);
 
   useEffect(() => {
-    if (activeReport?.id && activeReport.sha256_hash && !reportVerifications[activeReport.id]) {
-      fetchReportVerification(activeReport.id);
+    void fetchQuestions();
+    void fetchReports();
+  }, [fetchQuestions, fetchReports]);
+
+  const hasActiveVerification = useMemo(() => {
+    if (!activeReport?.id) return false;
+    return Boolean(reportVerifications[activeReport.id]);
+  }, [activeReport?.id, reportVerifications]);
+
+  useEffect(() => {
+    if (activeReport?.id && activeReport.sha256_hash && !hasActiveVerification) {
+      void fetchReportVerification(activeReport.id);
     }
-  }, [activeReport?.id, activeReport?.sha256_hash]);
+  }, [activeReport?.id, activeReport?.sha256_hash, hasActiveVerification, fetchReportVerification]);
 
   // ── Progress Calculation ─────────────────────────────────────────────────
   const pillarGroups = questions.reduce((acc, q) => {
@@ -409,13 +439,25 @@ export function ReportStudio() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 6rem)", gap: 0, overflow: "hidden" }}>
+    <div style={{ 
+      display: "flex", 
+      flexDirection: "column", 
+      height: "calc(100vh - 56px - 48px)", // TopBar(56px) + AppShell py-6(48px)
+      gap: 0, 
+      overflow: "hidden",
+      boxSizing: "border-box"
+    }}>
+      {env.DEMO_MODE && (
+        <div className="rounded-lg border border-atlas-200 bg-atlas-50 px-3 py-2 text-[12px] text-atlas-800 mb-3">
+          <strong>Act 7 cue:</strong> Generate CSRD report, then verify report hash and version lineage.
+        </div>
+      )}
 
       {/* ── Page Header ─────────────────────────────────────────────────── */}
       <header style={{ padding: "0 0 16px", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-          <div>
-            <h1 className="atlas-page-title" style={{ color: "#166534" }}>Report Studio</h1>
+          <div style={{ flex: 1 }}>
+            <h1 className="atlas-page-title" style={{ color: "var(--color-atlas-600)" }}>Report Studio</h1>
             <p className="atlas-page-subtitle">
               Generate investor-grade ESG reports aligned with CSRD, GRI, and TCFD from verified workspace data.
             </p>
@@ -493,10 +535,17 @@ export function ReportStudio() {
       </header>
 
       {/* ── Main 3-Column Layout ─────────────────────────────────────────── */}
-      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "280px 1fr 240px", gap: 16, overflow: "hidden" }}>
+      <div className="report-studio-grid" style={{ 
+        flex: 1, 
+        display: "grid", 
+        gap: 20, 
+        overflow: "hidden",
+        minHeight: 0,
+        paddingBottom: 4 // Small buffer
+      }}>
 
         {/* ── LEFT: Interview Panel ────────────────────────────────────── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, overflow: "hidden" }}>
+        <div className="report-studio-sidebar-left" style={{ display: "flex", flexDirection: "column", gap: 12, overflow: "hidden" }}>
           {/* Config panel */}
           <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16, flexShrink: 0 }}>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase", marginBottom: 10 }}>Report Configuration</p>
@@ -572,7 +621,15 @@ export function ReportStudio() {
           </div>
 
           {/* Questions scroll area */}
-          <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, paddingBottom: 16 }}>
+          <div style={{ 
+            flex: 1, 
+            overflowY: "auto", 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: 12, 
+            paddingBottom: 24,
+            paddingRight: 4 // Space for scrollbar
+          }}>
             {filteredQuestions.map((q) => (
               <QuestionCard
                 key={q.id}
@@ -589,20 +646,19 @@ export function ReportStudio() {
         </div>
 
         {/* ── CENTER: Report Document ──────────────────────────────────── */}
-        <div style={{
-          display: "flex", flexDirection: "column", background: "white",
-          border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,0.06)"
-        }}>
+        <div className="flex flex-col bg-white border border-border rounded-xl overflow-hidden shadow-2xl shadow-atlas-900/10 animate-atlas-in" style={{ minWidth: 0 }}>
           {/* Document toolbar */}
           {activeReport && (
-            <div style={{ height: 52, borderBottom: "1px solid #f1f5f9", background: "#fafafa", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", flexShrink: 0, gap: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 18, color: "#16a34a" }}>description</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+            <div className="h-[52px] border-b border-border-light bg-surface-secondary flex items-center justify-between px-4 shrink-0 gap-3">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-[18px] text-atlas-600">description</span>
+                <span className="text-[13px] font-bold text-text-primary">
                   {activeReport.output_format.toUpperCase()} · {activeReport.reporting_year}
                 </span>
                 <StatusPill status={activeReport.status} />
-                <span style={{ fontSize: 10, background: "#f1f5f9", color: "#64748b", padding: "2px 8px", borderRadius: 4, fontWeight: 700 }}>v{activeReport.version}</span>
+                <span className="text-[10px] bg-white border border-border text-text-secondary px-2 py-0.5 rounded-md font-bold">
+                  v{activeReport.version}
+                </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 {/* Version selector */}
@@ -621,12 +677,13 @@ export function ReportStudio() {
                 )}
                 {/* Export buttons */}
                 {(activeReport.status === "approved" || activeReport.status === "published") && (
-                  <div style={{ display: "flex", gap: 4, paddingLeft: 8, borderLeft: "1px solid #e2e8f0" }}>
-                    {["xhtml", "pdf", "docx"].map((fmt) => (
+                  <div className="flex gap-1.5 pl-2 border-l border-border">
+                    {["xhtml"].map((fmt) => (
                       <button key={fmt} onClick={() => handleExport(fmt)}
                         title={`Export ${fmt.toUpperCase()}`}
-                        style={{ padding: "5px 8px", border: "1px solid #e2e8f0", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 11, color: "#475569", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                        <span className="material-symbols-outlined" style={{ fontSize: 14 }}>
+                        className="px-2.5 py-1.5 border border-border rounded-md bg-white hover:bg-surface-secondary hover:border-atlas-300 transition-all cursor-pointer text-[11px] text-text-secondary font-semibold flex items-center gap-1.5"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">
                           {fmt === "xhtml" ? "html" : fmt === "pdf" ? "picture_as_pdf" : "description"}
                         </span>
                         {fmt.toUpperCase()}
@@ -640,20 +697,20 @@ export function ReportStudio() {
 
           {/* Workflow bar */}
           {activeReport && (
-            <div style={{ padding: "10px 20px", borderBottom: "1px solid #f1f5f9", background: "white", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div className="py-2.5 px-5 border-b border-border-light bg-white shrink-0 flex items-center justify-between">
               <WorkflowBar status={activeReport.status} />
               {activeReport.rejection_reason && (
-                <div style={{ fontSize: 11, color: "#dc2626", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, padding: "4px 10px" }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 12, verticalAlign: "middle" }}>warning</span>{" "}
+                <div className="text-[11px] text-danger bg-danger-bg border border-danger-border rounded-md px-2.5 py-1">
+                  <span className="material-symbols-outlined text-[12px] align-middle mr-1">warning</span>
                   {activeReport.rejection_reason}
                 </div>
               )}
-              <span style={{ fontSize: 11, color: "#94a3b8" }}>Updated {new Date(activeReport.updated_at).toLocaleString()}</span>
+              <span className="text-[11px] text-text-muted">Updated {new Date(activeReport.updated_at).toLocaleString()}</span>
             </div>
           )}
 
           {/* Document body */}
-          <div ref={docRef} style={{ flex: 1, overflowY: "auto", padding: "40px 48px" }}>
+          <div ref={docRef} className="flex-1 overflow-y-auto px-6 md:px-12 py-10 bg-[#fbfcfb] inner-shadow">
             {generating ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 16 }}>
                 <div style={{
@@ -768,25 +825,39 @@ export function ReportStudio() {
         </div>
 
         {/* ── RIGHT: Sidebar ───────────────────────────────────────────── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
+        <div className="report-studio-sidebar-right" style={{ display: "flex", flexDirection: "column", gap: 12, overflowY: "auto" }}>
 
-          {/* Report versions */}
+          {/* Report versions Timeline */}
           {reports.length > 0 && (
-            <div style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: 16 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", color: "#94a3b8", textTransform: "uppercase", marginBottom: 10 }}>Report History</p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div className="bg-white border border-border rounded-xl p-4 shrink-0">
+              <p className="text-[10px] font-bold tracking-[0.08em] text-text-muted uppercase mb-4">Version History</p>
+              <div className="relative pl-3">
+                <div className="absolute left-[15px] top-2 bottom-2 w-[2px] bg-border-light" />
                 {reports.slice(0, 5).map((r) => {
                   const cfg = STATUS_CONFIG[r.status] || { color: "#64748b", bg: "#f8fafc", border: "#e2e8f0" };
                   const isActive = r.id === (activeReport?.id || reports[0]?.id);
                   return (
-                    <button key={r.id} onClick={() => setSelectedReportId(r.id)}
-                      style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${isActive ? "#bbf7d0" : "#f1f5f9"}`, background: isActive ? "#f0fdf4" : "white", cursor: "pointer", textAlign: "left", width: "100%" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: "#1e293b" }}>{r.reporting_year}</span>
-                        <span style={{ fontSize: 9, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, padding: "1px 6px", borderRadius: 4, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>{STATUS_CONFIG[r.status]?.label || r.status}</span>
-                      </div>
-                      <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>v{r.version} · {r.output_format.toUpperCase()}</div>
-                    </button>
+                    <div key={r.id} className="relative mb-3 last:mb-0">
+                      <div className={`absolute -left-[17px] top-1.5 w-3 h-3 rounded-full border-2 ${isActive ? 'bg-atlas-500 border-white' : 'bg-surface-secondary border-border'} z-10`} />
+                      <button
+                        onClick={() => setSelectedReportId(r.id)}
+                        className={`w-full text-left p-2.5 rounded-lg border transition-colors ${
+                          isActive 
+                            ? "border-atlas-400/30 bg-success-bg shadow-sm" 
+                            : "border-transparent hover:border-border hover:bg-surface-secondary"
+                        }`}
+                      >
+                        <div className="flex justify-between items-center mb-1">
+                          <span className={`text-[12px] font-bold ${isActive ? 'text-atlas-900' : 'text-text-primary'}`}>
+                            v{r.version} · {r.reporting_year}
+                          </span>
+                          <span className="text-[9px] font-bold tracking-[0.06em] uppercase px-1.5 py-0.5 rounded" style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}>
+                            {STATUS_CONFIG[r.status]?.label || r.status}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-text-muted">{r.output_format.toUpperCase()} · {new Date(r.updated_at).toLocaleDateString()}</div>
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -861,6 +932,50 @@ export function ReportStudio() {
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .report-studio-grid {
+          grid-template-columns: 280px 1fr 260px;
+        }
+
+        /* Custom scrollbar for a cleaner "Studio" look */
+        .report-studio-grid *::-webkit-scrollbar {
+          width: 4px;
+        }
+        .report-studio-grid *::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .report-studio-grid *::-webkit-scrollbar-thumb {
+          background: #e2e8f0;
+          border-radius: 10px;
+        }
+        .report-studio-grid *::-webkit-scrollbar-thumb:hover {
+          background: #cbd5e1;
+        }
+
+        @media (max-width: 1400px) {
+          .report-studio-grid {
+            grid-template-columns: 260px 1fr 240px;
+            gap: 12px;
+          }
+        }
+
+        @media (max-width: 1200px) {
+          .report-studio-grid {
+            grid-template-columns: 260px 1fr;
+          }
+          .report-studio-sidebar-right {
+            display: none;
+          }
+        }
+
+        @media (max-width: 900px) {
+          .report-studio-grid {
+            grid-template-columns: 1fr;
+          }
+          .report-studio-sidebar-left {
+            display: none;
+          }
+        }
       `}</style>
     </div>
   );

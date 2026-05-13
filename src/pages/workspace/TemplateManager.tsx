@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -6,6 +6,7 @@ import { apiClient } from "../../lib/api-client";
 import { Badge } from "../../components/ui/Badge";
 import { useAuthStore } from "../../store/auth";
 import { useWorkspaceStore } from "../../store/workspace";
+import { env } from "../../lib/env";
 
 type FieldType = "string" | "float" | "int" | "date" | "bool";
 type SchemaField = { key: string; type: FieldType };
@@ -151,7 +152,7 @@ export function TemplateManager() {
   const [templateForm, setTemplateForm] = useState(DEFAULT_FORM);
   const [schemaFields, setSchemaFields] = useState<SchemaField[]>(DEFAULT_SCHEMA_FIELDS);
 
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     try {
       const path = workspaceId ? `/templates?workspace_id=${workspaceId}` : "/templates";
       const res: any = await apiClient(path);
@@ -159,11 +160,11 @@ export function TemplateManager() {
     } catch (e) {
       console.error(e);
     }
-  };
+  }, [workspaceId]);
 
   useEffect(() => {
-    fetchTemplates();
-  }, [workspaceId]);
+    void fetchTemplates();
+  }, [fetchTemplates]);
 
   const stableStringify = (value: unknown) => {
     try {
@@ -264,8 +265,8 @@ export function TemplateManager() {
         setStatusMessage("Template saved. Now run Pre-run from this editor.");
       }
 
-      fetchTemplates();
-    } catch (e) {
+      void fetchTemplates();
+    } catch {
       setErrorMessage("Invalid JSON or server error.");
     }
   };
@@ -304,7 +305,7 @@ export function TemplateManager() {
       setShowAdvancedPrompt(false);
       setShowEditor(true);
       setStatusMessage(`Imported ${file.name} successfully.`);
-      fetchTemplates();
+      void fetchTemplates();
     } catch (error: any) {
       setErrorMessage(error?.message || "Template import failed.");
     } finally {
@@ -358,7 +359,7 @@ export function TemplateManager() {
   };
 
   const handleTemplatePreRun = async () => {
-    const companyId = activeCompanyId || user?.company_id || null;
+    const companyId = activeCompanyId || user?.company_id || "platform";
     if (!companyId || !workspaceId) {
       setErrorMessage("Company/workspace context missing.");
       return;
@@ -430,6 +431,11 @@ export function TemplateManager() {
 
   return (
     <div className="space-y-6">
+      {env.DEMO_MODE && (
+        <div className="rounded-lg border border-atlas-200 bg-atlas-50 px-3 py-2 text-[12px] text-atlas-800">
+          <strong>Act 3 cue:</strong> Blueprints define extraction schema, units, and standards mapping before AI runs.
+        </div>
+      )}
       <header className="flex items-start justify-between mb-8">
         <div>
           <h1 className="atlas-page-title text-atlas-600">Template Library</h1>

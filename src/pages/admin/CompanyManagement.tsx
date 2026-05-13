@@ -4,6 +4,7 @@ import { apiClient } from "../../lib/api-client";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
+import { env } from "../../lib/env";
 
 interface Company {
   id: string;
@@ -17,6 +18,7 @@ export function CompanyManagement() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [newCompanyName, setNewCompanyName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [isPreparingDemo, setIsPreparingDemo] = useState(false);
 
   const fetchCompanies = async () => {
     try {
@@ -50,15 +52,53 @@ export function CompanyManagement() {
     }
   };
 
+  const handlePrepareDemo = async () => {
+    if (isPreparingDemo) return;
+    setIsPreparingDemo(true);
+    try {
+      const targetName = "NovaTerra Manufacturing Ltd";
+      let existing = companies.find((company) => company.name.toLowerCase() === targetName.toLowerCase());
+
+      if (!existing) {
+        await apiClient("/companies", {
+          method: "POST",
+          body: JSON.stringify({ name: targetName }),
+        });
+        const refreshed: any = await apiClient("/companies?page_size=100");
+        const list = refreshed.data || [];
+        setCompanies(list);
+        existing = list.find((company: Company) => company.name.toLowerCase() === targetName.toLowerCase());
+      }
+
+      if (existing) {
+        navigate(`/c/${existing.id}`);
+      } else {
+        alert("Unable to prepare NovaTerra automatically. Please create it manually.");
+      }
+    } catch (e: any) {
+      alert(`Demo preparation failed: ${e.message || "Unknown error"}`);
+    } finally {
+      setIsPreparingDemo(false);
+    }
+  };
+
 
   return (
     <div className="space-y-6">
+      {env.DEMO_MODE && (
+        <div className="rounded-lg border border-atlas-200 bg-atlas-50 px-3 py-2 text-[12px] text-atlas-800">
+          <strong>Act 2 cue:</strong> Provision NovaTerra, then highlight role-based segregation of duties.
+        </div>
+      )}
       <header className="flex items-start justify-between mb-8">
         <div>
           <h1 className="atlas-page-title text-atlas-600">Entity Management</h1>
           <p className="atlas-page-subtitle">Provision isolated corporate environments for reporting.</p>
         </div>
         <div className="flex gap-3">
+          <Button variant="outline" onClick={handlePrepareDemo} disabled={isPreparingDemo}>
+            {isPreparingDemo ? "Preparing Demo..." : "Prepare NovaTerra Demo"}
+          </Button>
           <input 
             type="text" 
             placeholder="New Entity Name..." 

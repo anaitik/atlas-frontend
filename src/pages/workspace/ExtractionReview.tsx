@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -129,7 +129,7 @@ export function ExtractionReview() {
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!workspaceId) return;
     setLoading(true);
     try {
@@ -162,11 +162,11 @@ export function ExtractionReview() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [workspaceId, deepLinkExtractionId]);
 
   useEffect(() => {
     void loadData();
-  }, [workspaceId, deepLinkExtractionId]);
+  }, [loadData]);
 
   useEffect(() => {
     if (selectedRecord) {

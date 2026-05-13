@@ -102,6 +102,9 @@
   .atlas-card-interactive {
     @apply bg-surface border border-border rounded-xl shadow-sm hover:shadow-md hover:border-atlas-400/30 transition-all duration-200 cursor-pointer;
   }
+  .inner-shadow {
+    box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
+  }
 
   /* Stat cards */
   .atlas-stat {
@@ -217,7 +220,7 @@
   to { opacity: 1; transform: translateY(0); }
 }
 .animate-atlas-in {
-  animation: atlas-fade-in 0.3s ease-out;
+  animation: atlas-fade-in 0.3s ease-out both;
 }
 
 @keyframes atlas-pulse {
@@ -233,5 +236,306 @@
   to { opacity: 1; transform: translateX(0); }
 }
 .animate-atlas-slide {
-  animation: atlas-slide-in 0.25s ease-out;
+  animation: atlas-slide-in 0.25s ease-out both;
+}
+
+/* ── Premium Animations ────────────────────────── */
+
+/* Shimmer / Skeleton loading */
+@keyframes atlas-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, #f1f5f3 25%, #e2e8f0 50%, #f1f5f3 75%);
+  background-size: 200% 100%;
+  animation: atlas-shimmer 1.5s ease-in-out infinite;
+}
+
+/* Blockchain chain-link glow pulse */
+@keyframes chain-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+  50% { box-shadow: 0 0 20px 4px rgba(34, 197, 94, 0.2); }
+}
+.animate-chain-pulse {
+  animation: chain-pulse 2s ease-in-out infinite;
+}
+
+/* Success glow for blockchain confirmed */
+@keyframes blockchain-confirm {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-blockchain-confirm {
+  animation: blockchain-confirm 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+/* Counter pop-in for stat values */
+@keyframes counter-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  70% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-counter-pop {
+  animation: counter-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+/* Staggered fade-in for card grids */
+.stagger-fade > * {
+  opacity: 0;
+  animation: atlas-fade-in 0.4s ease-out both;
+}
+.stagger-fade > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-fade > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger-fade > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger-fade > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger-fade > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger-fade > *:nth-child(6) { animation-delay: 0.3s; }
+.stagger-fade > *:nth-child(7) { animation-delay: 0.35s; }
+.stagger-fade > *:nth-child(8) { animation-delay: 0.4s; }
+
+/* Gentle floating motion */
+@keyframes atlas-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+.animate-float {
+  animation: atlas-float 3s ease-in-out infinite;
+}
+
+/* Progress bar flow */
+@keyframes progress-flow {
+  0% { width: 0%; }
+}
+.animate-progress-flow {
+  animation: progress-flow 1s ease-out both;
+}
+
+/* Typing cursor blink */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.animate-cursor {
+  animation: cursor-blink 1s step-end infinite;
+}
+
+/* Gradient border animation */
+@keyframes gradient-rotate {
+  0% { --angle: 0deg; }
+  100% { --angle: 360deg; }
+}
+
+/* Scale-in for modals */
+@keyframes scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out both;
+}
+
+/* Slide-up for toasts/alerts */
+@keyframes slide-up {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out both;
+}
+
+/* ── Glassmorphism & Premium Effects ───────────── */
+
+/* Frosted glass card */
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Dark frosted glass */
+.glass-dark {
+  background: rgba(5, 46, 22, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(34, 197, 94, 0.15);
+}
+
+/* Gradient text */
+.text-gradient-green {
+  background: linear-gradient(135deg, #16a34a, #22c55e, #86efac);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-emerald {
+  background: linear-gradient(135deg, #052e16, #166534, #16a34a);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Login Page Cinematic Background ───────────── */
+.login-bg {
+  background:
+    radial-gradient(ellipse at 20% 80%, rgba(22, 163, 74, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(34, 197, 94, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(5, 46, 22, 0.03) 0%, transparent 70%),
+    linear-gradient(135deg, #f0f4f1 0%, #e8ece9 30%, #dce5df 60%, #d0dbd4 100%);
+}
+
+.login-brand-panel {
+  background: linear-gradient(165deg, #031a0c 0%, #052e16 35%, #0a3d1f 65%, #14532d 100%);
+}
+
+/* Grid pattern overlay for login brand panel */
+.grid-pattern {
+  background-image:
+    linear-gradient(rgba(34, 197, 94, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 197, 94, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ── Pipeline Stage Visualization ──────────────── */
+
+.pipeline-stage {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.pipeline-stage::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -24px;
+  width: 24px;
+  height: 2px;
+  background: #e2e8f0;
+  transition: background 0.3s ease;
+}
+
+.pipeline-stage:last-child::after {
+  display: none;
+}
+
+.pipeline-stage.active::after {
+  background: linear-gradient(90deg, #22c55e, #e2e8f0);
+}
+
+.pipeline-stage.done::after {
+  background: #22c55e;
+}
+
+/* Pipeline node dot */
+.pipeline-dot {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.pipeline-dot.idle {
+  background: #f1f5f9;
+  border: 2px solid #e2e8f0;
+  color: #94a3b8;
+}
+
+.pipeline-dot.active {
+  background: #fffbeb;
+  border: 2px solid #fbbf24;
+  color: #d97706;
+  box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.15);
+}
+
+.pipeline-dot.done {
+  background: #f0fdf4;
+  border: 2px solid #22c55e;
+  color: #16a34a;
+}
+
+.pipeline-dot.processing {
+  background: #eff6ff;
+  border: 2px solid #3b82f6;
+  color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+}
+
+/* ── Enhanced Stat Cards ───────────────────────── */
+.stat-card-premium {
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card-premium::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  opacity: 0.05;
+  transform: translate(20px, -20px);
+}
+
+.stat-card-premium.env::before { background: #16a34a; }
+.stat-card-premium.social::before { background: #2563eb; }
+.stat-card-premium.gov::before { background: #9333ea; }
+
+/* Sparkline container */
+.sparkline-container {
+  height: 32px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.sparkline-bar {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  transition: height 0.5s ease;
+  min-width: 3px;
+}
+
+/* ── Skeleton Loading Patterns ─────────────────── */
+.skeleton {
+  border-radius: 6px;
+}
+
+.skeleton-text {
+  height: 14px;
+  border-radius: 4px;
+}
+
+.skeleton-title {
+  height: 24px;
+  width: 60%;
+  border-radius: 4px;
+}
+
+.skeleton-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.skeleton-card {
+  height: 120px;
+  border-radius: 12px;
+}
+
+/* ── Print Optimization ────────────────────────── */
+@media print {
+  .glass-card,
+  .glass-dark {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }

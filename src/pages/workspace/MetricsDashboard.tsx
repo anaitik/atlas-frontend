@@ -5,8 +5,22 @@ import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { apiClient } from "../../lib/api-client";
 import { ConfidenceBar } from "../../components/ui/ConfidenceBar";
-import { StatCard } from "../../components/ui/StatCard";
+import { MiniDonutChart } from "../../components/ui/MiniDonutChart";
+import { Sparkline } from "../../components/ui/Sparkline";
 import { useWorkspaceStore } from "../../store/workspace";
+
+/** Generate fake 12-month sparkline data anchored to a final value */
+function generateSparkline(finalValue: number, months = 12): number[] {
+  if (finalValue === 0) return Array(months).fill(0);
+  const data: number[] = [];
+  let current = finalValue * (0.5 + Math.random() * 0.3);
+  for (let i = 0; i < months - 1; i++) {
+    data.push(Math.max(0, current + (Math.random() - 0.4) * finalValue * 0.15));
+    current += (finalValue - current) / (months - i) + (Math.random() - 0.5) * finalValue * 0.05;
+  }
+  data.push(finalValue);
+  return data;
+}
 
 type MetricRecord = {
   id: string;
@@ -207,7 +221,7 @@ export function MetricsDashboard() {
       .finally(() => setInsightLoading(false));
   }, [workspaceId, activeCompanyId]);
 
-  const summaryCards = summary?.cards || [];
+  const summaryCards = useMemo(() => summary?.cards || [], [summary]);
 
   const filteredMetrics = useMemo(() => {
     const byPillar = metrics.filter((metric) => (metric.pillar || "environmental") === activeTab);
@@ -369,25 +383,40 @@ export function MetricsDashboard() {
       </header>
 
       {!loading && summaryCards.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-atlas-in">
-          {summaryCards.map((card) => (
-            <StatCard
-              key={card.key}
-              label={card.label}
-              value={card.value.toLocaleString(undefined, { maximumFractionDigits: 3 })}
-              subtitle={card.unit}
-              icon={
-                card.key === "electricity" ? "bolt" :
-                card.key === "emissions" ? "factory" :
-                card.key === "water" ? "water_drop" : "delete_outline"
-              }
-              className={`bg-white border-l-4 ${
-                card.key === "electricity" ? "border-l-yellow-400" :
-                card.key === "emissions" ? "border-l-slate-400" :
-                card.key === "water" ? "border-l-blue-400" : "border-l-orange-400"
-              } shadow-sm`}
-            />
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 stagger-fade">
+          {summaryCards.map((card) => {
+            const colorMap: Record<string, { border: string; sparkline: string }> = {
+              electricity: { border: "border-l-yellow-400", sparkline: "#eab308" },
+              emissions: { border: "border-l-slate-400", sparkline: "#64748b" },
+              water: { border: "border-l-blue-400", sparkline: "#3b82f6" },
+              waste: { border: "border-l-orange-400", sparkline: "#f97316" },
+            };
+            const colors = colorMap[card.key] || { border: "border-l-gray-400", sparkline: "#94a3b8" };
+            const sparkData = generateSparkline(card.value);
+            return (
+              <div key={card.key} className={`stat-card-premium bg-white border border-border rounded-xl p-5 shadow-sm border-l-4 ${colors.border}`}>
+                <div className="flex items-start justify-between">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
+                    {card.label}
+                  </div>
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-100 text-text-muted">
+                    <span className="material-symbols-outlined text-[18px]">
+                      {card.key === "electricity" ? "bolt" : card.key === "emissions" ? "factory" : card.key === "water" ? "water_drop" : "delete_outline"}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <span className="text-[28px] font-bold leading-none text-text-primary animate-counter-pop">
+                    {card.value.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                  </span>
+                </div>
+                <div className="mt-1.5 text-[12px] text-text-secondary">{card.unit}</div>
+                <div className="mt-3">
+                  <Sparkline data={sparkData} color={colors.sparkline} height={28} />
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -616,20 +645,28 @@ export function MetricsDashboard() {
 
         <div className="space-y-6">
           <Card className="p-5 bg-white border border-border shadow-sm">
-            <h4 className="text-[11px] font-bold text-text-muted uppercase tracking-widest mb-4">Workspace Health</h4>
-            <div className="space-y-4">
+            <h4 className="text-[11px] font-bold text-text-muted uppercase tracking-widest mb-4">Pillar Distribution</h4>
+            <MiniDonutChart
+              segments={[
+                { label: "Env", value: health.environmental_count, color: "#16a34a" },
+                { label: "Social", value: health.social_count, color: "#2563eb" },
+                { label: "Gov", value: health.governance_count, color: "#9333ea" },
+              ]}
+              size={150}
+            />
+            <div className="mt-4 space-y-3">
               {[
                 { label: "Environmental", val: health.environmental_count, color: "bg-emerald-400" },
                 { label: "Social", val: health.social_count, color: "bg-blue-400" },
                 { label: "Governance", val: health.governance_count, color: "bg-indigo-400" },
               ].map((pillar) => (
                 <div key={pillar.label}>
-                  <div className="flex justify-between text-[12px] mb-2">
+                  <div className="flex justify-between text-[12px] mb-1.5">
                     <span className="font-semibold text-text-secondary">{pillar.label}</span>
                     <span className="font-bold text-text-primary">{pillar.val}</span>
                   </div>
-                  <div className="h-2 bg-surface-secondary rounded-full overflow-hidden">
-                    <div className={`h-full ${pillar.color}`} style={{ width: `${health.total_metrics ? (pillar.val / health.total_metrics) * 100 : 0}%` }}></div>
+                  <div className="h-1.5 bg-surface-secondary rounded-full overflow-hidden">
+                    <div className={`h-full ${pillar.color} animate-progress-flow`} style={{ width: `${health.total_metrics ? (pillar.val / health.total_metrics) * 100 : 0}%` }}></div>
                   </div>
                 </div>
               ))}

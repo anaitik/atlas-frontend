@@ -9,6 +9,12 @@ interface LoginResponse {
   access_token: string;
 }
 
+function FloatingOrb({ className, style }: { className: string; style?: React.CSSProperties }) {
+  return (
+    <div className={`absolute rounded-full blur-3xl opacity-20 animate-float ${className}`} style={style} />
+  );
+}
+
 export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -50,146 +56,243 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden"
-      style={{
-        background: "linear-gradient(135deg, #f0f4f1 0%, #e8ece9 30%, #dce5df 60%, #d0dbd4 100%)",
-      }}
-    >
-      {/* Subtle decorative text removed per request */}
+    <div className="min-h-screen flex">
+      {/* ── Left: Cinematic Brand Panel ──────────────── */}
+      <div className="hidden lg:flex lg:w-[48%] xl:w-[45%] login-brand-panel relative overflow-hidden">
+        {/* Grid pattern overlay */}
+        <div className="absolute inset-0 grid-pattern" />
 
-      {/* Login Card */}
-      <form
-        onSubmit={handleLogin}
-        className="relative z-10 w-full max-w-[420px] bg-white rounded-2xl shadow-xl shadow-black/[0.06] p-10 animate-atlas-in"
-      >
-        {/* Brand */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-xl bg-atlas-900 flex items-center justify-center mb-4 shadow-lg">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f0fdf4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {/* Floating orbs */}
+        <FloatingOrb className="w-64 h-64 bg-atlas-500 top-[10%] left-[10%]" />
+        <FloatingOrb className="w-48 h-48 bg-atlas-400 bottom-[20%] right-[15%]" style={{ animationDelay: "1s" } as React.CSSProperties} />
+        <FloatingOrb className="w-32 h-32 bg-emerald-300 top-[60%] left-[50%]" style={{ animationDelay: "2s" } as React.CSSProperties} />
+
+        {/* Decorative circles */}
+        <div className="absolute top-12 right-12 w-48 h-48 rounded-full border border-atlas-400/10" />
+        <div className="absolute top-16 right-16 w-40 h-40 rounded-full border border-atlas-400/5" />
+        <div className="absolute bottom-32 left-8 w-24 h-24 rounded-full border border-atlas-400/8" />
+
+        {/* Content */}
+        <div className="relative z-10 flex flex-col justify-between p-12 w-full">
+          {/* Top: Brand */}
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-11 h-11 rounded-xl bg-atlas-500/20 border border-atlas-400/20 flex items-center justify-center backdrop-blur-sm">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                  <path d="M2 17l10 5 10-5" />
+                  <path d="M2 12l10 5 10-5" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-white tracking-tight">Atlas</h1>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-atlas-400">
+                  ESG Trust Infrastructure
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Middle: Hero messaging */}
+          <div className="my-auto">
+            <h2 className="text-[40px] font-extrabold text-white leading-[1.1] tracking-tight mb-5">
+              The Trust Layer
+              <br />
+              <span className="text-gradient-green">for Sustainability</span>
+              <br />
+              Data
+            </h2>
+            <p className="text-[15px] text-atlas-300/80 leading-relaxed max-w-md mb-10">
+              Blockchain-verified provenance from source document to published report.
+              Every metric auditable. Every data point immutable.
+            </p>
+
+            {/* Trust metrics */}
+            <div className="grid grid-cols-3 gap-6">
+              {[
+                { value: "Real-time", label: "Audit Trail", icon: "shield" },
+                { value: "Traceable", label: "Metric Lineage", icon: "bar_chart" },
+                { value: "Verifiable", label: "Report Integrity", icon: "description" },
+              ].map((stat) => (
+                <div key={stat.label} className="glass-dark rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="material-symbols-outlined text-atlas-400 text-[16px]">{stat.icon}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-atlas-400/70">{stat.label}</span>
+                  </div>
+                  <div className="text-[22px] font-bold text-white tracking-tight">
+                    {stat.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Bottom: Trust indicators */}
+          <div className="flex items-center gap-4">
+            {["Polygon PoS", "SHA-256", "CSRD Ready", "XBRL Compatible"].map((tag) => (
+              <span key={tag} className="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.06em] text-atlas-400/70 border border-atlas-400/15 bg-atlas-400/5">
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Right: Login Form ──────────────────────────── */}
+      <div className="flex-1 flex items-center justify-center login-bg relative">
+        {/* Mobile brand (shown only on small screens) */}
+        <div className="absolute top-6 left-6 flex items-center gap-2 lg:hidden">
+          <div className="w-8 h-8 rounded-lg bg-atlas-900 flex items-center justify-center">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2L2 7l10 5 10-5-10-5z" />
               <path d="M2 17l10 5 10-5" />
               <path d="M2 12l10 5 10-5" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-text-primary tracking-tight">Atlas</h1>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-atlas-600 mt-1">
-            ESG Reporting Hub
-          </p>
+          <span className="text-[15px] font-bold text-text-primary">Atlas</span>
         </div>
 
-        {/* Heading */}
-        <div className="text-center mb-6">
-          <h2 className="text-lg font-bold text-text-primary">Institutional Access</h2>
-          <p className="text-[13px] text-text-secondary mt-1">
-            Authenticate to manage global governance protocols.
-          </p>
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div className="mb-5 p-3 rounded-lg bg-danger-bg border border-danger-border text-danger text-[13px] flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px]">error</span>
-            {error}
-          </div>
-        )}
-
-        {/* Fields */}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-[12px] font-semibold uppercase tracking-[0.04em] text-text-secondary mb-1.5">
-              Institutional Email
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-text-muted text-[18px]">
-                mail
-              </span>
-              <input
-                type="email"
-                required
-                className="atlas-input !pl-10"
-                placeholder="admin@sustainability.ai"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                id="login-email"
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[12px] font-semibold uppercase tracking-[0.04em] text-text-secondary">
-                Access Key
-              </label>
-              <a href="#" className="text-[12px] font-medium text-atlas-600 hover:text-atlas-500 transition-colors">
-                Forgot Password?
-              </a>
-            </div>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-text-muted text-[18px]">
-                lock
-              </span>
-              <input
-                type={showPassword ? "text" : "password"}
-                required
-                className="atlas-input !pl-10 !pr-10"
-                placeholder="••••••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                id="login-password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-              >
-                <span className="material-symbols-outlined text-[18px]">
-                  {showPassword ? "visibility_off" : "visibility"}
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Remember */}
-        <label className="flex items-center gap-2 mt-4 cursor-pointer">
-          <input type="checkbox" className="w-4 h-4 rounded border-border text-atlas-600 focus:ring-atlas-500/30" />
-          <span className="text-[13px] text-text-secondary">Maintain secure session for 24h</span>
-        </label>
-
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full mt-6 py-3 bg-atlas-900 hover:bg-atlas-800 text-white text-[14px] font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-2 cursor-pointer"
-          id="login-submit"
+        <form
+          onSubmit={handleLogin}
+          className="relative z-10 w-full max-w-[420px] mx-6 bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl shadow-black/[0.06] border border-white/50 p-10 animate-atlas-in"
         >
-          {loading ? "Authenticating..." : (
-            <>Log In <span className="text-[16px]">→</span></>
+          {/* Brand */}
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-14 h-14 rounded-xl bg-atlas-900 flex items-center justify-center mb-4 shadow-lg shadow-atlas-900/30">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f0fdf4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
+            </div>
+            <h1 className="text-2xl font-bold text-text-primary tracking-tight">Atlas</h1>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-atlas-600 mt-1">
+              ESG Reporting Hub
+            </p>
+          </div>
+
+          {/* Heading */}
+          <div className="text-center mb-6">
+            <h2 className="text-lg font-bold text-text-primary">Institutional Access</h2>
+            <p className="text-[13px] text-text-secondary mt-1">
+              Authenticate to manage global governance protocols.
+            </p>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="mb-5 p-3 rounded-lg bg-danger-bg border border-danger-border text-danger text-[13px] flex items-center gap-2 animate-slide-up">
+              <span className="material-symbols-outlined text-[18px]">error</span>
+              {error}
+            </div>
           )}
-        </button>
 
-        {/* Footer */}
-        <div className="mt-8 flex flex-col items-center gap-3">
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-border">
-            <span className="w-1.5 h-1.5 rounded-full bg-atlas-500"></span>
-            <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-text-secondary">
-              Verified ESG Endpoint
-            </span>
-          </div>
-          <div className="flex items-center gap-4 text-[12px] text-text-muted">
-            <a href="#" className="hover:text-text-secondary transition-colors">Security Policy</a>
-            <a href="#" className="hover:text-text-secondary transition-colors">Audit Protocol</a>
-            <a href="#" className="hover:text-text-secondary transition-colors">Technical Support</a>
-          </div>
-        </div>
+          {/* Fields */}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-[12px] font-semibold uppercase tracking-[0.04em] text-text-secondary mb-1.5">
+                Institutional Email
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-text-muted text-[18px]">
+                  mail
+                </span>
+                <input
+                  type="email"
+                  required
+                  className="atlas-input !pl-10 !bg-white/90"
+                  placeholder="admin@sustainability.ai"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  id="login-email"
+                />
+              </div>
+            </div>
 
-        <p className="text-center text-[13px] text-text-muted mt-6">
-          Don't have an account?{" "}
-          <a href="/register" className="text-atlas-600 hover:text-atlas-500 font-semibold transition-colors">
-            Request Access
-          </a>
-        </p>
-      </form>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-[12px] font-semibold uppercase tracking-[0.04em] text-text-secondary">
+                  Access Key
+                </label>
+                <a href="#" className="text-[12px] font-medium text-atlas-600 hover:text-atlas-500 transition-colors">
+                  Forgot Password?
+                </a>
+              </div>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-text-muted text-[18px]">
+                  lock
+                </span>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  className="atlas-input !pl-10 !pr-10 !bg-white/90"
+                  placeholder="************"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  id="login-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[18px]">
+                    {showPassword ? "visibility_off" : "visibility"}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Remember */}
+          <label className="flex items-center gap-2 mt-4 cursor-pointer">
+            <input type="checkbox" className="w-4 h-4 rounded border-border text-atlas-600 focus:ring-atlas-500/30" />
+            <span className="text-[13px] text-text-secondary">Maintain secure session for 24h</span>
+          </label>
+
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full mt-6 py-3 bg-atlas-900 hover:bg-atlas-800 text-white text-[14px] font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer group"
+            id="login-submit"
+          >
+            {loading ? (
+              <>
+                <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+                Authenticating...
+              </>
+            ) : (
+              <>
+                Log In
+                <span className="text-[16px] group-hover:translate-x-0.5 transition-transform">-&gt;</span>
+              </>
+            )}
+          </button>
+
+          {/* Footer */}
+          <div className="mt-8 flex flex-col items-center gap-3">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-border bg-white/50">
+              <span className="w-1.5 h-1.5 rounded-full bg-atlas-500 animate-atlas-pulse"></span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-text-secondary">
+                Verified ESG Endpoint
+              </span>
+            </div>
+            <div className="flex items-center gap-4 text-[12px] text-text-muted">
+              <a href="#" className="hover:text-text-secondary transition-colors">Security Policy</a>
+              <a href="#" className="hover:text-text-secondary transition-colors">Audit Protocol</a>
+              <a href="#" className="hover:text-text-secondary transition-colors">Technical Support</a>
+            </div>
+          </div>
+
+          <p className="text-center text-[13px] text-text-muted mt-6">
+            Don't have an account?{" "}
+            <a href="/register" className="text-atlas-600 hover:text-atlas-500 font-semibold transition-colors">
+              Request Access
+            </a>
+          </p>
+        </form>
+      </div>
     </div>
   );
 }

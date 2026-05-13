@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { StatCard } from "../../components/ui/StatCard";
 import { Badge, StatusBadge } from "../../components/ui/Badge";
 import { BlockchainBadge } from "../../components/ui/BlockchainBadge";
+import { PipelineTracker, getDefaultPipelineStages } from "../../components/ui/PipelineTracker";
 import { apiClient, ApiError } from "../../lib/api-client";
 import { useAuthStore } from "../../store/auth";
 import { useWorkspaceStore } from "../../store/workspace";
+import { env } from "../../lib/env";
 
 type UploadStatus = "queued" | "uploading" | "extracting" | "complete" | "error";
 
@@ -205,19 +207,19 @@ export function ExtractionDashboard() {
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const companyId = activeCompanyId || user?.company_id || null;
+  const companyId = activeCompanyId || user?.company_id || "platform";
   const queuedCount = uploadItems.filter((item) => item.status === "queued").length;
   const completedCount = uploadItems.filter((item) => item.status === "complete").length;
   const totalDocuments = completedCount + runs.length;
 
-  const fetchRuns = async () => {
+  const fetchRuns = useCallback(async () => {
     try {
       const res: any = await apiClient(`/extraction?workspace_id=${workspaceId}`);
       setRuns(res.items || res || []);
     } catch (error) {
       console.error(error);
     }
-  };
+  }, [workspaceId]);
 
   useEffect(() => {
     const templatePath = workspaceId ? `/templates?workspace_id=${workspaceId}` : "/templates";
@@ -230,8 +232,8 @@ export function ExtractionDashboard() {
         }
       })
       .catch(console.error);
-    fetchRuns();
-  }, [workspaceId]);
+    void fetchRuns();
+  }, [workspaceId, fetchRuns]);
 
   const updateUploadItem = (id: string, patch: Partial<UploadItem>) => {
     setUploadItems((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item));
@@ -259,7 +261,7 @@ export function ExtractionDashboard() {
     const targetTemplateId = overrideTemplateId || activeTemplateId;
     
     if (!targetTemplateId) {
-      setErrorMessage("Please setup a template first before uploading documents.");
+      setErrorMessage("Set up at least one blueprint in Template Manager before uploading evidence.");
       return;
     }
 
@@ -444,6 +446,11 @@ export function ExtractionDashboard() {
 
   return (
     <div className="space-y-6">
+      {env.DEMO_MODE && (
+        <div className="rounded-lg border border-atlas-200 bg-atlas-50 px-3 py-2 text-[12px] text-atlas-800">
+          <strong>Act 4-5 cue:</strong> Upload - hash - anchor - extract - human review. Show tx hash after first document.
+        </div>
+      )}
       <header className="flex items-start justify-between">
         <div>
           <h1 className="atlas-page-title text-atlas-600">Document Collection</h1>
@@ -469,8 +476,29 @@ export function ExtractionDashboard() {
         </div>
       )}
 
+      {/* ── Pipeline Tracker ─────────────────────────── */}
+      <PipelineTracker
+        stages={(() => {
+          const hasUploads = uploadItems.length > 0;
+          const hasHashed = uploadItems.some(i => i.sha256Hash);
+          const hasAnchored = uploadItems.some(i => i.verification?.verified_on_chain);
+          const hasExtracted = uploadItems.some(i => i.prerun || i.extractionId);
+          const hasCompleted = uploadItems.some(i => i.status === "complete");
+          const isProcessing = loading || uploadItems.some(i => i.status === "uploading" || i.status === "extracting");
+
+          return getDefaultPipelineStages({
+            upload: hasUploads ? "done" : isProcessing ? "processing" : "idle",
+            fingerprint: hasHashed ? "done" : (hasUploads && isProcessing) ? "processing" : "idle",
+            anchor: hasAnchored ? "done" : (hasHashed && isProcessing) ? "processing" : "idle",
+            extract: hasExtracted ? "done" : (hasAnchored && isProcessing) ? "processing" : "idle",
+            review: hasCompleted ? "done" : (hasExtracted && isProcessing) ? "processing" : "idle",
+          });
+        })()}
+        className="animate-atlas-in"
+      />
+
       {/* ── Stat Bar ────────────────────────────────── */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-4 gap-4 stagger-fade">
         <StatCard label="Collected" value={totalDocuments} subtitle="Verified documents" icon="description" variant="default" />
         <StatCard label="Review Queue" value={runs.filter(r => r.status === "needs_review" || r.confidence_score < 0.85).length || queuedCount} subtitle="Items pending attention" icon="rate_review" variant="warning" />
         <StatCard label="Configured Blueprints" value={templates.length} subtitle="Active extraction rules" icon="account_tree" variant="muted" />
