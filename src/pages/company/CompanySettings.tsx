@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { Settings, Plus, Trash2, Database, Component, Workflow, Globe2 } from "lucide-react";
 import { apiClient } from "../../lib/api-client";
+import { humanizeKey } from "../../lib/display-labels";
 
 type MetricDefinition = {
   key: string;
@@ -119,7 +120,7 @@ export function CompanySettings() {
               <table className="atlas-table whitespace-nowrap">
                 <thead>
                   <tr>
-                    <th>Metric Key</th>
+                    <th>Metric</th>
                     <th>Description</th>
                     <th>Pillar</th>
                     <th>Unit</th>
@@ -141,7 +142,8 @@ export function CompanySettings() {
                       <td className="py-4 px-2">
                         <div className="flex items-center gap-2">
                           {m.company_id ? <Component className="h-4 w-4 text-atlas-600" /> : <Globe2 className="h-4 w-4 text-success" />}
-                          <span className="font-mono text-xs text-atlas-700">{m.key}</span>
+                          <span className="text-xs text-atlas-700 font-medium">{humanizeKey(m.key)}</span>
+                          <span className="text-[10px] text-text-muted block mt-0.5">{m.key}</span>
                         </div>
                       </td>
                       <td className="py-4 px-2 text-text-secondary truncate max-w-[300px]">{m.description}</td>
@@ -170,7 +172,7 @@ export function CompanySettings() {
               <table className="atlas-table whitespace-nowrap">
                 <thead>
                   <tr>
-                    <th>Routing Key</th>
+                    <th>Factor</th>
                     <th>Value</th>
                     <th>Unit</th>
                     <th>Scope</th>
@@ -192,7 +194,8 @@ export function CompanySettings() {
                       <td className="py-4 px-2">
                         <div className="flex items-center gap-2">
                           {f.company_id ? <Component className="h-4 w-4 text-atlas-600" /> : <Globe2 className="h-4 w-4 text-success" />}
-                          <span className="font-mono text-xs text-atlas-700">{f.key}</span>
+                          <span className="text-xs text-atlas-700 font-medium">{humanizeKey(f.key)}</span>
+                          <span className="text-[10px] text-text-muted block mt-0.5">{f.key}</span>
                         </div>
                       </td>
                       <td className="py-4 px-2 text-text-primary font-medium">{f.value}</td>

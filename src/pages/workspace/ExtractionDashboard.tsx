@@ -5,11 +5,13 @@ import { Button } from "../../components/ui/Button";
 import { StatCard } from "../../components/ui/StatCard";
 import { Badge, StatusBadge } from "../../components/ui/Badge";
 import { BlockchainBadge } from "../../components/ui/BlockchainBadge";
-import { PipelineTracker, getDefaultPipelineStages } from "../../components/ui/PipelineTracker";
+import { PipelineTracker, getDefaultPipelineStages, getSimplePipelineStages } from "../../components/ui/PipelineTracker";
 import { apiClient, ApiError } from "../../lib/api-client";
 import { useAuthStore } from "../../store/auth";
 import { useWorkspaceStore } from "../../store/workspace";
-import { env } from "../../lib/env";
+import { usePersonaMode } from "../../hooks/usePersonaMode";
+import { PreviewSummaryCard, TechnicalDetailsDrawer } from "../../components/expert";
+import { copy } from "../../lib/copy";
 
 type UploadStatus = "queued" | "uploading" | "extracting" | "complete" | "error";
 
@@ -80,13 +82,6 @@ type ExtractionPreRunResult = {
   metric_recommendation: MetricRecommendation;
 };
 
-type PayloadDiffEntry = {
-  key: string;
-  changeType: "added" | "removed" | "updated";
-  previousValue: unknown;
-  currentValue: unknown;
-};
-
 function createUploadId(file: File) {
   return `${file.name}-${file.size}-${file.lastModified}`;
 }
@@ -95,101 +90,6 @@ function resolveErrorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiError) return error.message;
   if (error instanceof Error) return error.message;
   return fallback;
-}
-
-function stableStringify(value: unknown) {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function diffDeep(
-  previousValue: unknown,
-  currentValue: unknown,
-  path: string,
-  changes: PayloadDiffEntry[]
-) {
-  if (isPlainObject(previousValue) && isPlainObject(currentValue)) {
-    const keys = new Set([...Object.keys(previousValue), ...Object.keys(currentValue)]);
-    for (const key of Array.from(keys).sort()) {
-      const hasPrev = Object.prototype.hasOwnProperty.call(previousValue, key);
-      const hasCurr = Object.prototype.hasOwnProperty.call(currentValue, key);
-      const nextPath = path ? `${path}.${key}` : key;
-      if (!hasPrev && hasCurr) {
-        changes.push({
-          key: nextPath,
-          changeType: "added",
-          previousValue: null,
-          currentValue: currentValue[key],
-        });
-        continue;
-      }
-      if (hasPrev && !hasCurr) {
-        changes.push({
-          key: nextPath,
-          changeType: "removed",
-          previousValue: previousValue[key],
-          currentValue: null,
-        });
-        continue;
-      }
-      diffDeep(previousValue[key], currentValue[key], nextPath, changes);
-    }
-    return;
-  }
-
-  if (Array.isArray(previousValue) && Array.isArray(currentValue)) {
-    const max = Math.max(previousValue.length, currentValue.length);
-    for (let index = 0; index < max; index += 1) {
-      const hasPrev = index < previousValue.length;
-      const hasCurr = index < currentValue.length;
-      const nextPath = `${path}[${index}]`;
-      if (!hasPrev && hasCurr) {
-        changes.push({
-          key: nextPath,
-          changeType: "added",
-          previousValue: null,
-          currentValue: currentValue[index],
-        });
-        continue;
-      }
-      if (hasPrev && !hasCurr) {
-        changes.push({
-          key: nextPath,
-          changeType: "removed",
-          previousValue: previousValue[index],
-          currentValue: null,
-        });
-        continue;
-      }
-      diffDeep(previousValue[index], currentValue[index], nextPath, changes);
-    }
-    return;
-  }
-
-  if (stableStringify(previousValue) !== stableStringify(currentValue)) {
-    changes.push({
-      key: path || "(root)",
-      changeType: "updated",
-      previousValue,
-      currentValue,
-    });
-  }
-}
-
-function computePayloadDiff(
-  previousPayload: Record<string, unknown> | null | undefined,
-  currentPayload: Record<string, unknown> | null | undefined
-): PayloadDiffEntry[] {
-  const changes: PayloadDiffEntry[] = [];
-  diffDeep(previousPayload || {}, currentPayload || {}, "", changes);
-  return changes;
 }
 
 export function ExtractionDashboard() {
@@ -227,9 +127,6 @@ export function ExtractionDashboard() {
       .then((res: any) => {
         const items = res.items || res || [];
         setTemplates(items);
-        if (items.length > 0) {
-          setActiveTemplateId(items[0].id);
-        }
       })
       .catch(console.error);
     void fetchRuns();
@@ -261,7 +158,7 @@ export function ExtractionDashboard() {
     const targetTemplateId = overrideTemplateId || activeTemplateId;
     
     if (!targetTemplateId) {
-      setErrorMessage("Set up at least one blueprint in Template Manager before uploading evidence.");
+      setErrorMessage("Choose a document type before uploading.");
       return;
     }
 
@@ -444,18 +341,19 @@ export function ExtractionDashboard() {
     }
   };
 
+  const { isSimple, isOperatorUi } = usePersonaMode();
+  const [previewDrawer, setPreviewDrawer] = useState<{ open: boolean; payload: Record<string, unknown> | null }>({
+    open: false,
+    payload: null,
+  });
+
   return (
     <div className="space-y-6">
-      {env.DEMO_MODE && (
-        <div className="rounded-lg border border-atlas-200 bg-atlas-50 px-3 py-2 text-[12px] text-atlas-800">
-          <strong>Act 4-5 cue:</strong> Upload - hash - anchor - extract - human review. Show tx hash after first document.
-        </div>
-      )}
       <header className="flex items-start justify-between">
         <div>
-          <h1 className="atlas-page-title text-atlas-600">Document Collection</h1>
+          <h1 className="atlas-page-title text-atlas-600">{isSimple ? copy.nav.upload : copy.expert.uploadTitle}</h1>
           <p className="atlas-page-subtitle">
-            Upload source evidence into defined data scopes. AI will automatically execute the corresponding extraction blueprint.
+            {isSimple ? copy.documents.subtitle : copy.expert.uploadSubtitle}
           </p>
         </div>
         <Button variant="ghost" onClick={() => navigate(`/w/${workspaceId}/review`)}>
@@ -478,6 +376,7 @@ export function ExtractionDashboard() {
 
       {/* ── Pipeline Tracker ─────────────────────────── */}
       <PipelineTracker
+        subtitle={isSimple ? undefined : copy.expert.pipelineSubtitle}
         stages={(() => {
           const hasUploads = uploadItems.length > 0;
           const hasHashed = uploadItems.some(i => i.sha256Hash);
@@ -485,6 +384,15 @@ export function ExtractionDashboard() {
           const hasExtracted = uploadItems.some(i => i.prerun || i.extractionId);
           const hasCompleted = uploadItems.some(i => i.status === "complete");
           const isProcessing = loading || uploadItems.some(i => i.status === "uploading" || i.status === "extracting");
+
+          if (isSimple) {
+            const processDone = hasExtracted || hasAnchored || hasHashed;
+            return getSimplePipelineStages({
+              upload: hasUploads ? "done" : isProcessing ? "processing" : "idle",
+              process: processDone ? "done" : hasUploads && isProcessing ? "processing" : "idle",
+              review: hasCompleted ? "done" : processDone && isProcessing ? "processing" : "idle",
+            });
+          }
 
           return getDefaultPipelineStages({
             upload: hasUploads ? "done" : isProcessing ? "processing" : "idle",
@@ -499,25 +407,31 @@ export function ExtractionDashboard() {
 
       {/* ── Stat Bar ────────────────────────────────── */}
       <div className="grid grid-cols-4 gap-4 stagger-fade">
-        <StatCard label="Collected" value={totalDocuments} subtitle="Verified documents" icon="description" variant="default" />
-        <StatCard label="Review Queue" value={runs.filter(r => r.status === "needs_review" || r.confidence_score < 0.85).length || queuedCount} subtitle="Items pending attention" icon="rate_review" variant="warning" />
-        <StatCard label="Configured Blueprints" value={templates.length} subtitle="Active extraction rules" icon="account_tree" variant="muted" />
-        <StatCard label="Report Status" value="—" subtitle="Step 4/4" icon="assignment" variant="muted" />
+        <StatCard label="Collected" value={totalDocuments} subtitle="Documents in this period" icon="description" variant="default" />
+        <StatCard label="Awaiting review" value={runs.filter(r => r.status === "needs_review" || r.confidence_score < 0.85).length || queuedCount} subtitle="Need approval" icon="rate_review" variant="warning" />
+        <StatCard label={copy.expert.documentTypesReady} value={templates.length} subtitle="Ready to use" icon="account_tree" variant="muted" />
+        <StatCard label={copy.expert.documentsProcessed} value={completedCount + runs.length} subtitle="Processed so far" icon="assignment" variant="muted" />
       </div>
 
       {/* ── Dynamic Template Scopes ──────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[15px] font-bold text-text-primary">Data Scopes</h2>
-          <Button variant="ghost" onClick={() => navigate(`/w/${workspaceId}/templates`)}>Manage Blueprints</Button>
+          <h2 className="text-[15px] font-bold text-text-primary">{copy.expert.chooseDocumentType}</h2>
+          {isOperatorUi && (
+            <Button variant="ghost" onClick={() => navigate(`/w/${workspaceId}/templates`)}>{copy.nav.documentTypes}</Button>
+          )}
         </div>
 
         {templates.length === 0 ? (
            <div className="bg-surface-secondary border border-dashed border-border rounded-xl flex flex-col items-center justify-center p-12 text-center">
               <span className="material-symbols-outlined text-text-muted text-[42px] mb-3">account_tree</span>
-              <p className="text-[16px] font-bold text-text-primary mb-1">No Data Blueprints Configured</p>
-              <p className="text-[13px] text-text-secondary mb-4">Please create at least one extraction template before uploading files.</p>
-              <Button onClick={() => navigate(`/w/${workspaceId}/templates`)}>Configure Blueprint</Button>
+              <p className="text-[16px] font-bold text-text-primary mb-1">No document types configured</p>
+              <p className="text-[13px] text-text-secondary mb-4">
+                {isSimple
+                  ? "Ask your sustainability manager to set up document types, or switch to Expert mode if you manage templates."
+                  : "Please create at least one extraction template before uploading files."}
+              </p>
+              {isOperatorUi && <Button onClick={() => navigate(`/w/${workspaceId}/templates`)}>{copy.nav.documentTypes}</Button>}
            </div>
         ) : (
           <div className="grid grid-cols-3 gap-4">
@@ -538,19 +452,20 @@ export function ExtractionDashboard() {
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <Badge variant="blue">SCOPE</Badge>
-                      <span className="text-[11px] text-text-muted font-mono">{tpl.id.slice(0,8)}</span>
+                      <Badge variant="blue">Document type</Badge>
                     </div>
                   </div>
 
                   <div className="mb-4">
                     <h3 className="text-[15px] font-bold text-text-primary truncate" title={tpl.name}>{tpl.name}</h3>
-                    <p className="text-[12px] text-text-secondary mt-1 line-clamp-2">{(tpl.schema_json && Object.keys(tpl.schema_json).length) || 0} fields mapped to this scope.</p>
+                    <p className="text-[12px] text-text-secondary mt-1 line-clamp-2">
+                      {(tpl.schema_json && Object.keys(tpl.schema_json).length) || Object.keys(tpl.schema_definition || {}).length || 0} fields configured
+                    </p>
                   </div>
 
                   <div className="flex items-center justify-between text-[11px] font-medium text-text-secondary mb-3">
-                    <span>{extractionDocs} Processed Data Points</span>
-                    {queuedItems > 0 && <span className="text-warning">{queuedItems} Pending Queue</span>}
+                    <span>{extractionDocs} {copy.expert.documentsProcessed.toLowerCase()}</span>
+                    {queuedItems > 0 && <span className="text-warning">{queuedItems} in queue</span>}
                   </div>
 
                   <div className="atlas-dropzone py-4"
@@ -561,7 +476,7 @@ export function ExtractionDashboard() {
                     }}
                   >
                     <span className="material-symbols-outlined text-text-muted text-[24px] mb-1 block">upload_file</span>
-                    <p className="text-[12px] font-semibold text-text-secondary">Upload Evidence</p>
+                    <p className="text-[12px] font-semibold text-text-secondary">{copy.period.uploadDocuments}</p>
                   </div>
                 </Card>
               );
@@ -577,15 +492,18 @@ export function ExtractionDashboard() {
         multiple
         className="hidden"
         onChange={(event) => { handleAddFiles(event.target.files); event.target.value = ""; }}
+        disabled={!activeTemplateId}
       />
 
       {/* ── Document Queue ─────────── */}
       <Card>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h3 className="text-[15px] font-bold text-text-primary">Extraction Pipeline Queue</h3>
+            <h3 className="text-[15px] font-bold text-text-primary">{isSimple ? "Your uploads" : copy.expert.uploadQueue}</h3>
             <p className="text-[12px] text-text-secondary mt-0.5">
-              Review assigned scopes and execute blockchain registration + LLM extraction.
+              {isSimple
+                ? "Files are secured and processed automatically when you start upload."
+                : "Assign a document type to each file, preview extraction, then confirm when ready."}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -630,21 +548,25 @@ export function ExtractionDashboard() {
               </div>
 
               <StatusBadge status={item.status} />
-              <Button
-                variant="ghost"
-                className="text-[11px] px-2 py-1"
-                onClick={() => handlePreRunItem(item)}
-                disabled={item.status === "uploading" || item.status === "extracting"}
-              >
-                Pre-run
-              </Button>
-              <Button
-                className="text-[11px] px-2 py-1"
-                onClick={() => handleFinalizeItem(item)}
-                disabled={!item.prerun || item.status === "uploading" || item.status === "extracting"}
-              >
-                Finalize
-              </Button>
+              {isOperatorUi && (
+                <>
+                  <Button
+                    variant="ghost"
+                    className="text-[11px] px-2 py-1"
+                    onClick={() => handlePreRunItem(item)}
+                    disabled={item.status === "uploading" || item.status === "extracting"}
+                  >
+                    {copy.expert.previewExtraction}
+                  </Button>
+                  <Button
+                    className="text-[11px] px-2 py-1"
+                    onClick={() => handleFinalizeItem(item)}
+                    disabled={!item.prerun || item.status === "uploading" || item.status === "extracting"}
+                  >
+                    {copy.expert.confirmExtraction}
+                  </Button>
+                </>
+              )}
               {item.extractionId && (
                 <Button variant="ghost" className="text-[11px] px-2 py-1" onClick={() => navigate(`/w/${workspaceId}/review`)}>
                   Review
@@ -661,78 +583,47 @@ export function ExtractionDashboard() {
           )) : (
             <div className="py-8 text-center bg-surface-secondary border border-dashed border-border rounded-lg text-text-muted">
                <span className="material-symbols-outlined text-[24px] mb-2 block">task</span>
-               <p className="text-[13px]">No files queued. Select a data scope above to upload evidence.</p>
+               <p className="text-[13px]">No files queued. Choose a document type above to upload.</p>
             </div>
           )}
         </div>
 
-        {uploadItems.some((item) => item.prerun) && (
+        {isOperatorUi && uploadItems.some((item) => item.prerun) && (
           <div className="space-y-3 mb-4">
-            <h4 className="text-[13px] font-bold text-text-primary">Pre-run Preview</h4>
+            <h4 className="text-[13px] font-bold text-text-primary">{copy.expert.previewSummary}</h4>
             {uploadItems.filter((item) => item.prerun).map((item) => (
-              <div key={`${item.id}-preview`} className="p-3 rounded-lg border border-border-light bg-white">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[12px] font-semibold text-text-primary">{item.file.name}</p>
-                  <p className="text-[11px] text-text-secondary">
-                    Confidence: {Math.round((item.prerun?.confidence_score || 0) * 100)}%
-                  </p>
-                </div>
-                {(() => {
-                  const changes = computePayloadDiff(item.previousPrerun?.payload, item.prerun?.payload);
-                  if (!item.previousPrerun) return null;
-                  return (
-                    <div className="mb-2 p-2 rounded border border-border-light bg-surface-secondary">
-                      <p className="text-[11px] font-semibold text-text-secondary mb-1">
-                        Changes Since Last Pre-run ({changes.length})
-                      </p>
-                      {changes.length === 0 ? (
-                        <p className="text-[11px] text-text-muted">No payload changes detected.</p>
-                      ) : (
-                        <div className="max-h-[110px] overflow-auto space-y-1">
-                          {changes.map((change) => (
-                            <div key={change.key} className="text-[10px]">
-                              <span className="font-semibold">{change.key}</span>
-                              <span className="mx-1 text-text-muted">•</span>
-                              <span className="uppercase text-[9px] font-bold text-atlas-700">{change.changeType}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+              <div key={`${item.id}-preview`}>
+                <PreviewSummaryCard
+                  fileName={item.file.name}
+                  confidence={item.prerun?.confidence_score}
+                  payload={item.prerun?.payload}
+                  metricCandidates={item.prerun?.metric_candidates as Array<{ metric_code?: string; name?: string }> | undefined}
+                  metricTargets={item.prerun?.metric_recommendation?.metric_targets}
+                  onViewDetails={() =>
+                    setPreviewDrawer({ open: true, payload: (item.prerun?.payload || {}) as Record<string, unknown> })
+                  }
+                />
                 <textarea
-                  className="atlas-input h-[70px] text-[12px] mb-2 resize-none"
-                  placeholder="Add feedback (NLP), then click Pre-run again."
+                  className="atlas-input h-[60px] text-[12px] mt-2 resize-none w-full"
+                  placeholder="Optional notes to improve the next preview…"
                   value={item.feedbackNlp}
                   onChange={(e) => updateUploadItem(item.id, { feedbackNlp: e.target.value })}
                 />
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  <div className="p-2 bg-surface-secondary rounded border border-border-light">
-                    <p className="text-[11px] font-semibold text-text-secondary mb-1">Extracted Payload</p>
-                    <pre className="text-[10px] max-h-[180px] overflow-auto whitespace-pre-wrap">
-                      {JSON.stringify(item.prerun?.payload || {}, null, 2)}
-                    </pre>
-                  </div>
-                  <div className="p-2 bg-surface-secondary rounded border border-border-light">
-                    <p className="text-[11px] font-semibold text-text-secondary mb-1">Metric Candidates</p>
-                    <pre className="text-[10px] max-h-[180px] overflow-auto whitespace-pre-wrap">
-                      {JSON.stringify(item.prerun?.metric_candidates || [], null, 2)}
-                    </pre>
-                    <p className="text-[11px] font-semibold text-text-secondary mt-2 mb-1">Recommended Targets</p>
-                    <pre className="text-[10px] max-h-[120px] overflow-auto whitespace-pre-wrap">
-                      {JSON.stringify(item.prerun?.metric_recommendation?.metric_targets || [], null, 2)}
-                    </pre>
-                  </div>
-                </div>
               </div>
             ))}
           </div>
         )}
 
+        <TechnicalDetailsDrawer
+          open={previewDrawer.open}
+          onClose={() => setPreviewDrawer({ open: false, payload: null })}
+          title={copy.expert.technicalDetails}
+          json={previewDrawer.payload}
+        />
+
         <div className="flex items-center gap-3 pt-4 border-t border-border-light">
           <Button disabled={uploadItems.filter(i => i.status !== "complete").length === 0 || loading || templates.length === 0} onClick={handleRunPipeline}>
-            {loading ? "Processing..." : "Start Pipeline"}
+            {loading ? "Processing..." : isSimple ? "Upload and process" : "Start upload"}
           </Button>
           <Button variant="ghost" disabled={completedCount === 0 || loading} onClick={() => setUploadItems(c => c.filter(i => i.status !== "complete"))}>
             Clear Completed

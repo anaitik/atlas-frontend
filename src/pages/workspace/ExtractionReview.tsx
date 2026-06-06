@@ -5,8 +5,26 @@ import { Card } from "../../components/ui/Card";
 import { Badge, StatusBadge } from "../../components/ui/Badge";
 import { ConfidenceBar } from "../../components/ui/ConfidenceBar";
 import { apiClient } from "../../lib/api-client";
+import { copy } from "../../lib/copy";
+import {
+  displayDocumentLabel,
+  displayRecordTitle,
+  displayTemplateLabel,
+  resolveActorName,
+  formatEntityTable,
+  formatEventType,
+  formatFieldPath,
+} from "../../lib/display-labels";
 import { env } from "../../lib/env";
 import { useAuthStore } from "../../store/auth";
+import { usePersonaMode } from "../../hooks/usePersonaMode";
+import {
+  DocumentTypeHealthCard,
+  DocumentTypeHealthSummary,
+  FieldValueTable,
+  SourceTrail,
+  TechnicalDetailsDrawer,
+} from "../../components/expert";
 
 type ExtractionRecord = {
   id: string;
@@ -76,6 +94,8 @@ type AuditEvent = {
   id: string;
   event_type: string;
   actor_user_id?: string | null;
+  actor_name?: string | null;
+  actor_email?: string | null;
   entity_table?: string | null;
   entity_id?: string | null;
   payload: Record<string, unknown>;
@@ -83,10 +103,6 @@ type AuditEvent = {
 };
 
 type ViewMode = "exceptions" | "insights";
-
-function toLabel(key: string) {
-  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 function readByPath(payload: Record<string, any> | undefined, fieldPath: string | null): unknown {
   if (!payload || !fieldPath) return null;
@@ -104,6 +120,9 @@ export function ExtractionReview() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const token = useAuthStore((state) => state.token);
+  const { isLead, showTechnicalDetails } = usePersonaMode();
+  const [technicalDrawerOpen, setTechnicalDrawerOpen] = useState(false);
+  const [technicalDrawerPayload, setTechnicalDrawerPayload] = useState<Record<string, unknown> | null>(null);
   const deepLinkExtractionId = searchParams.get("extractionId");
   const deepLinkFieldPath = searchParams.get("fieldPath");
   const deepLinkMetricCode = searchParams.get("metricCode");
@@ -232,17 +251,29 @@ export function ExtractionReview() {
   );
 
   const handleApprove = async (record: ExtractionRecord, isBulk = false) => {
+    const recordHasEdits =
+      !isBulk &&
+      selectedRecord?.id === record.id &&
+      JSON.stringify(localPayload || {}) !== JSON.stringify(record.payload || {});
+
+    let notes = "Approved from approval queue";
+    if (recordHasEdits) {
+      const rationale = window.prompt(copy.review.overrideRequired);
+      if (!rationale?.trim()) return;
+      notes = `Override: ${rationale.trim()}`;
+    }
+
     setApproving(true);
     try {
       await apiClient(`/extraction/${record.id}/review`, {
         method: "POST",
         body: JSON.stringify({
           action: "approve",
-          notes: "Approved in review cockpit",
-          overrides: isBulk ? null : localPayload,
+          notes,
+          overrides: isBulk ? null : recordHasEdits ? localPayload : null,
         }),
       });
-      setStatusMessage(`Approved ${record.document_filename || record.id}.`);
+      setStatusMessage(`Approved ${displayDocumentLabel(record.document_filename)}.`);
       await loadData();
     } finally {
       setApproving(false);
@@ -250,15 +281,18 @@ export function ExtractionReview() {
   };
 
   const handleBulkApprove = async () => {
+    const pending = records.filter((item) => item.status !== "approved");
+    if (pending.length === 0) return;
+    if (!window.confirm(`Approve ${pending.length} document${pending.length > 1 ? "s" : ""}?`)) return;
     setApproving(true);
     try {
-      for (const record of records.filter((item) => item.status !== "approved")) {
+      for (const record of pending) {
         await apiClient(`/extraction/${record.id}/review`, {
           method: "POST",
-          body: JSON.stringify({ action: "approve", notes: "Bulk approve from queue", overrides: null }),
+          body: JSON.stringify({ action: "approve", notes: "Bulk approve from approval queue", overrides: null }),
         });
       }
-      setStatusMessage("All records approved. Redirecting to metrics.");
+      setStatusMessage("All documents approved.");
       await loadData();
       navigate(`/w/${workspaceId}/metrics`);
     } finally {
@@ -267,11 +301,13 @@ export function ExtractionReview() {
   };
 
   const handleReject = async (record: ExtractionRecord) => {
+    const rationale = window.prompt(copy.review.rejectRationale);
+    if (!rationale?.trim()) return;
     await apiClient(`/extraction/${record.id}/review`, {
       method: "POST",
-      body: JSON.stringify({ action: "reject", notes: "Rejected from review cockpit" }),
+      body: JSON.stringify({ action: "reject", notes: rationale.trim() }),
     });
-    setStatusMessage(`Rejected ${record.document_filename || record.id}.`);
+    setStatusMessage(`Rejected ${displayDocumentLabel(record.document_filename)}.`);
     await loadData();
   };
 
@@ -297,7 +333,7 @@ export function ExtractionReview() {
     return (
       <div className="py-24 text-center text-text-muted">
         <span className="material-symbols-outlined text-[40px] animate-atlas-pulse mb-3 block">hourglass_top</span>
-        <p className="text-[14px] font-medium">Loading review cockpit...</p>
+        <p className="text-[14px] font-medium">Loading approval queue…</p>
       </div>
     );
   }
@@ -306,20 +342,21 @@ export function ExtractionReview() {
     <div className="space-y-6 max-w-[1400px] mx-auto w-full animate-atlas-in">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="atlas-page-title">Review Cockpit</h1>
-          <p className="atlas-page-subtitle">
-            Exception-first verification with blueprint insights and evidence exploration.
-          </p>
+          <h1 className="atlas-page-title">{copy.review.title}</h1>
+          <p className="atlas-page-subtitle">{copy.review.subtitle}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => navigate(`/w/${workspaceId}/extraction`)}>
-            Back to Collection
+          <Button
+            variant="ghost"
+            onClick={() => navigate(isLead ? `/w/${workspaceId}/documents` : `/w/${workspaceId}/extraction`)}
+          >
+            Back to documents
           </Button>
           <Button
             disabled={records.filter((item) => item.status !== "approved").length === 0 || approving}
             onClick={handleBulkApprove}
           >
-            Approve All and Run Metrics
+            {copy.expert.approveAllContinue}
           </Button>
         </div>
       </header>
@@ -331,31 +368,19 @@ export function ExtractionReview() {
         </div>
       )}
 
-      <div className="grid grid-cols-4 gap-3">
-        <Card className="p-4">
-          <p className="text-[11px] text-text-muted uppercase tracking-wide">Total Documents</p>
-          <p className="text-2xl font-bold mt-1">{insights?.total_documents || 0}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-[11px] text-text-muted uppercase tracking-wide">Needs Review</p>
-          <p className="text-2xl font-bold mt-1 text-warning">{insights?.needs_review_count || 0}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-[11px] text-text-muted uppercase tracking-wide">Low Confidence</p>
-          <p className="text-2xl font-bold mt-1 text-danger">{insights?.low_confidence_count || 0}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-[11px] text-text-muted uppercase tracking-wide">Blueprints</p>
-          <p className="text-2xl font-bold mt-1">{insights?.total_blueprints || 0}</p>
-        </Card>
-      </div>
+      <DocumentTypeHealthSummary
+        totalDocuments={insights?.total_documents || 0}
+        needsReview={insights?.needs_review_count || 0}
+        lowConfidence={insights?.low_confidence_count || 0}
+        documentTypeCount={insights?.total_blueprints || 0}
+      />
 
       <div className="flex items-center gap-2">
         <Button variant={viewMode === "exceptions" ? "primary" : "ghost"} onClick={() => setViewMode("exceptions")}>
-          Review Exceptions
+          {copy.expert.needsAttention}
         </Button>
         <Button variant={viewMode === "insights" ? "primary" : "ghost"} onClick={() => setViewMode("insights")}>
-          Blueprint Insights
+          {copy.expert.documentTypeHealth}
         </Button>
       </div>
 
@@ -363,7 +388,7 @@ export function ExtractionReview() {
         <div className="grid grid-cols-[320px_1fr] gap-6">
           <Card className="p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="atlas-eyebrow">Needs Attention</h3>
+              <h3 className="atlas-eyebrow">{copy.expert.needsAttention}</h3>
               <Badge variant="amber">{exceptionRecords.length}</Badge>
             </div>
             <div className="space-y-2 max-h-[68vh] overflow-auto pr-1">
@@ -382,7 +407,12 @@ export function ExtractionReview() {
                       : "bg-surface border-border hover:border-atlas-300"
                   }`}
                 >
-                  <p className="text-[13px] font-semibold truncate">{record.document_filename || record.document_id}</p>
+                  <p className="text-[13px] font-semibold truncate">
+                    {displayRecordTitle(record.document_filename, record.created_at)}
+                  </p>
+                  <p className="text-[11px] text-text-muted truncate mt-0.5">
+                    {displayTemplateLabel(record.template_name)}
+                  </p>
                   <div className="mt-1 flex items-center justify-between gap-2">
                     <StatusBadge status={record.status} />
                     <ConfidenceBar value={record.confidence_score} size="sm" className="w-16" />
@@ -397,10 +427,10 @@ export function ExtractionReview() {
               <div className="p-4 border-b border-border bg-surface-secondary flex items-start justify-between">
                 <div>
                   <h2 className="text-[16px] font-bold text-text-primary">
-                    {selectedRecord.document_filename || `Record ${selectedRecord.id.slice(-6)}`}
+                    {displayRecordTitle(selectedRecord.document_filename, selectedRecord.created_at)}
                   </h2>
                   <p className="text-[12px] text-text-secondary mt-1 flex items-center gap-2">
-                    <span>{selectedRecord.template_name || selectedRecord.template_id}</span>
+                    <span>{displayTemplateLabel(selectedRecord.template_name)}</span>
                     <span className="text-border">|</span>
                     <span>{new Date(selectedRecord.created_at).toLocaleString()}</span>
                   </p>
@@ -410,7 +440,7 @@ export function ExtractionReview() {
                   onClick={() =>
                     void handleDownloadSource(
                       selectedRecord.document_id,
-                      selectedRecord.document_filename || `${selectedRecord.document_id}.pdf`
+                      selectedRecord.document_filename || "source-document.pdf"
                     )
                   }
                 >
@@ -421,45 +451,31 @@ export function ExtractionReview() {
               {deepLinkFieldPath && (
                 <div className="px-4 py-3 border-b border-border bg-atlas-50/70 flex items-center justify-between gap-3">
                   <div className="text-[12px] text-atlas-800">
-                    Trace context: <span className="font-mono">{deepLinkFieldPath}</span>
+                    Highlighted field: <span className="font-medium">{formatFieldPath(deepLinkFieldPath)}</span>
                   </div>
                   <Button variant="ghost" className="text-[11px]" onClick={() => setEvidenceOpen((open) => !open)}>
-                    {evidenceOpen ? "Hide Evidence Drawer" : "Open Source at Field"}
+                    {evidenceOpen ? "Hide source trail" : "Show source trail"}
                   </Button>
                 </div>
               )}
 
               {evidenceOpen && deepLinkFieldPath && (
-                <div className="p-4 border-b border-border bg-white">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-[13px] font-bold text-text-primary">Field Evidence</h3>
-                    <Badge variant="blue">Forensic Trace</Badge>
-                  </div>
-                  <div className="mb-3 p-2 rounded border border-border-light bg-surface-secondary text-[11px] text-text-secondary">
-                    <span className="font-semibold">Lineage:</span>{" "}
-                    <span className="font-mono">Metric({deepLinkMetricCode || "unknown"})</span>{" "}
-                    {"->"} <span className="font-mono">Extraction({selectedRecord.id})</span>{" "}
-                    {"->"} <span className="font-mono">Field({deepLinkFieldPath})</span>{" "}
-                    {"->"} <span className="font-mono">Document({selectedRecord.document_id})</span>
-                  </div>
+                <div className="p-4 border-b border-border bg-white space-y-3">
+                  <SourceTrail
+                    metric={deepLinkMetricCode}
+                    document={selectedRecord.document_filename}
+                    field={deepLinkFieldPath}
+                  />
                   <div className="grid grid-cols-2 gap-3 text-[12px]">
                     <div className="p-3 rounded border border-border-light bg-surface-secondary">
-                      <p className="text-[10px] uppercase tracking-wide text-text-muted mb-1">Field Path</p>
-                      <p className="font-mono break-all text-text-primary">{deepLinkFieldPath}</p>
-                    </div>
-                    <div className="p-3 rounded border border-border-light bg-surface-secondary">
-                      <p className="text-[10px] uppercase tracking-wide text-text-muted mb-1">Extracted Value</p>
-                      <p className="font-mono break-all text-text-primary">
-                        {deepLinkedValue === null ? "Not found in payload path." : String(deepLinkedValue)}
+                      <p className="text-[10px] uppercase tracking-wide text-text-muted mb-1">Extracted value</p>
+                      <p className="break-all text-text-primary">
+                        {deepLinkedValue === null ? "Value not found." : String(deepLinkedValue)}
                       </p>
                     </div>
                     <div className="p-3 rounded border border-border-light bg-surface-secondary">
-                      <p className="text-[10px] uppercase tracking-wide text-text-muted mb-1">Extraction Confidence</p>
+                      <p className="text-[10px] uppercase tracking-wide text-text-muted mb-1">Confidence</p>
                       <p className="text-text-primary">{Math.round((selectedRecord.confidence_score || 0) * 100)}%</p>
-                    </div>
-                    <div className="p-3 rounded border border-border-light bg-surface-secondary">
-                      <p className="text-[10px] uppercase tracking-wide text-text-muted mb-1">Source Document</p>
-                      <p className="text-text-primary truncate">{selectedRecord.document_filename || selectedRecord.document_id}</p>
                     </div>
                   </div>
                   <div className="mt-3 flex gap-2">
@@ -468,7 +484,7 @@ export function ExtractionReview() {
                       onClick={() =>
                         void handleDownloadSource(
                           selectedRecord.document_id,
-                          selectedRecord.document_filename || `${selectedRecord.document_id}.pdf`
+                          selectedRecord.document_filename || "source-document.pdf"
                         )
                       }
                     >
@@ -489,13 +505,13 @@ export function ExtractionReview() {
                         {auditEvents.map((event) => (
                           <div key={event.id} className="p-2 rounded border border-border-light bg-surface-secondary">
                             <div className="flex items-center justify-between gap-2">
-                              <p className="text-[11px] font-semibold text-text-primary">{event.event_type}</p>
+                              <p className="text-[11px] font-semibold text-text-primary">{formatEventType(event.event_type)}</p>
                               <p className="text-[10px] text-text-muted">
                                 {new Date(event.created_at).toLocaleString()}
                               </p>
                             </div>
                             <p className="text-[10px] text-text-muted mt-1">
-                              actor: {event.actor_user_id || "system"} | entity: {event.entity_table || "n/a"}
+                              {resolveActorName(event.actor_user_id, event.actor_name)} · {formatEntityTable(event.entity_table)}
                             </p>
                           </div>
                         ))}
@@ -505,58 +521,29 @@ export function ExtractionReview() {
                 </div>
               )}
 
-              <div className="max-h-[62vh] overflow-auto">
-                <table className="atlas-table">
-                  <thead>
-                    <tr>
-                      <th className="w-[40%]">Field</th>
-                      <th>Extracted Value (Editable)</th>
-                      <th className="w-16"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(localPayload || {}).map(([key, value]) => (
-                      <tr
-                        key={key}
-                        className={`group ${deepLinkFieldKey === key ? "bg-atlas-50" : ""}`}
-                      >
-                        <td>
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-text-primary">{toLabel(key)}</span>
-                            <code className="text-[10px] text-text-muted mt-0.5">{key}</code>
-                          </div>
-                        </td>
-                        <td>
-                          <input
-                            className="atlas-input h-10 py-1"
-                            data-field-key={key}
-                            value={typeof value === "object" ? JSON.stringify(value) : String(value ?? "")}
-                            onChange={(event) =>
-                              setLocalPayload((current) => ({ ...current, [key]: event.target.value }))
-                            }
-                          />
-                        </td>
-                        <td className="text-right pr-3">
-                          <button
-                            className="text-text-muted hover:text-danger opacity-0 group-hover:opacity-100"
-                            onClick={() => {
-                              const next = { ...localPayload };
-                              delete next[key];
-                              setLocalPayload(next);
-                            }}
-                          >
-                            <span className="material-symbols-outlined text-[18px]">clear</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <FieldValueTable
+                fields={localPayload || {}}
+                editable
+                showTechnicalKeys={showTechnicalDetails}
+                highlightKey={deepLinkFieldKey}
+                onChange={(key, value) => setLocalPayload((current) => ({ ...current, [key]: value }))}
+                onRemove={(key) => {
+                  const next = { ...localPayload };
+                  delete next[key];
+                  setLocalPayload(next);
+                }}
+              />
+
+              <SourceTrail
+                className="mx-4 mb-2"
+                metric={deepLinkMetricCode}
+                document={selectedRecord.document_filename}
+                field={deepLinkFieldPath}
+              />
 
               <div className="p-4 border-t border-border bg-surface-secondary flex items-center justify-between">
                 <div className="text-[12px] text-text-secondary">
-                  {hasEdits ? "Unsaved overrides are ready for approval." : "Using original extraction output."}
+                  {hasEdits ? "Your edits will be saved when you approve." : "Showing values extracted from the source file."}
                 </div>
                 <div className="flex gap-2">
                   {deepLinkFieldPath && (
@@ -568,14 +555,14 @@ export function ExtractionReview() {
                         setSearchParams(searchParams);
                       }}
                     >
-                      Clear Trace Context
+                      {copy.expert.clearHighlight}
                     </Button>
                   )}
                   <Button variant="ghost" className="text-danger" onClick={() => void handleReject(selectedRecord)}>
                     Reject
                   </Button>
                   <Button disabled={approving} onClick={() => void handleApprove(selectedRecord)}>
-                    {approving ? "Saving..." : "Approve and Finalize"}
+                    {approving ? "Saving…" : "Approve"}
                   </Button>
                 </div>
               </div>
@@ -589,26 +576,19 @@ export function ExtractionReview() {
       {viewMode === "insights" && (
         <div className="grid grid-cols-[360px_1fr] gap-6">
           <Card className="p-4 space-y-3">
-            <h3 className="atlas-eyebrow">Blueprint Health</h3>
+            <h3 className="atlas-eyebrow">{copy.expert.documentTypeHealth}</h3>
             <div className="space-y-2 max-h-[70vh] overflow-auto pr-1">
               {(insights?.blueprints || []).map((bp) => (
-                <button
+                <DocumentTypeHealthCard
                   key={bp.template_id}
+                  name={displayTemplateLabel(bp.template_name)}
+                  documentsProcessed={bp.documents_processed}
+                  averageConfidence={bp.average_confidence}
+                  pendingCount={bp.pending_count}
+                  missingCount={bp.missing_required_count}
+                  selected={selectedBlueprintId === bp.template_id}
                   onClick={() => setSelectedBlueprintId(bp.template_id)}
-                  className={`w-full text-left p-3 rounded-lg border transition ${
-                    selectedBlueprintId === bp.template_id
-                      ? "bg-atlas-500/5 border-atlas-500 ring-1 ring-atlas-500/20"
-                      : "bg-surface border-border hover:border-atlas-300"
-                  }`}
-                >
-                  <p className="text-[13px] font-semibold truncate">{bp.template_name}</p>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-text-secondary">
-                    <span>{bp.documents_processed} docs</span>
-                    <span>{Math.round(bp.average_confidence * 100)}% avg conf</span>
-                    <span className="text-warning">{bp.pending_count} pending</span>
-                    <span className="text-danger">{bp.missing_required_count} missing</span>
-                  </div>
-                </button>
+                />
               ))}
             </div>
           </Card>
@@ -619,9 +599,9 @@ export function ExtractionReview() {
                 <Card className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-[16px] font-bold">{selectedBlueprint.template_name}</h2>
+                      <h2 className="text-[16px] font-bold">{displayTemplateLabel(selectedBlueprint.template_name)}</h2>
                       <p className="text-[12px] text-text-secondary mt-1">
-                        Aggregates and quality signals for this blueprint.
+                        Quality overview for this document type.
                       </p>
                     </div>
                     <Badge variant="gray">{selectedBlueprint.documents_processed} documents</Badge>
@@ -655,20 +635,35 @@ export function ExtractionReview() {
                           setSelectedEvidenceId(issue.extraction_id);
                         }}
                       >
-                        <p className="text-[12px] font-semibold">{issue.document_filename}</p>
-                        <p className="text-[11px] text-text-secondary mt-1">{issue.field} - {issue.detail}</p>
+                        <p className="text-[12px] font-semibold">
+                          {displayDocumentLabel(issue.document_filename)}
+                        </p>
+                        <p className="text-[11px] text-text-secondary mt-1">
+                          {formatFieldPath(issue.field)} — {issue.detail}
+                        </p>
                       </button>
                     ))}
                   </div>
                 </Card>
 
                 <Card className="p-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-[13px] font-bold">Evidence Explorer</h3>
-                    <Badge variant="gray">{blueprintEvidence.length} docs</Badge>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-[13px] font-bold">Extracted fields</h3>
+                    {selectedEvidence && (
+                      <Button
+                        variant="ghost"
+                        className="text-[11px]"
+                        onClick={() => {
+                          setTechnicalDrawerPayload(selectedEvidence.payload || {});
+                          setTechnicalDrawerOpen(true);
+                        }}
+                      >
+                        {copy.expert.viewDetails}
+                      </Button>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-[260px_1fr] gap-4 mt-3">
+                  <div className="grid grid-cols-[260px_1fr] gap-4">
                     <div className="space-y-2 max-h-[320px] overflow-auto pr-1">
                       {blueprintEvidence.map((doc) => (
                         <button
@@ -680,7 +675,9 @@ export function ExtractionReview() {
                           }`}
                           onClick={() => setSelectedEvidenceId(doc.extraction_id)}
                         >
-                          <p className="text-[12px] font-semibold truncate">{doc.document_filename}</p>
+                          <p className="text-[12px] font-semibold truncate">
+                            {displayRecordTitle(doc.document_filename, doc.created_at)}
+                          </p>
                           <div className="mt-1 flex items-center justify-between">
                             <StatusBadge status={doc.status} />
                             <ConfidenceBar value={doc.confidence_score} size="sm" className="w-14" />
@@ -691,39 +688,27 @@ export function ExtractionReview() {
 
                     <div className="rounded-lg border border-border bg-surface-secondary p-3">
                       {selectedEvidence ? (
-                        <>
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-[12px] font-semibold">{selectedEvidence.document_filename}</p>
-                            <Button
-                              variant="ghost"
-                              className="text-[11px]"
-                              onClick={() =>
-                                void handleDownloadSource(
-                                  selectedEvidence.document_id,
-                                  selectedEvidence.document_filename
-                                )
-                              }
-                            >
-                              Open Source
-                            </Button>
-                          </div>
-                          <pre className="text-[11px] max-h-[250px] overflow-auto whitespace-pre-wrap">
-                            {JSON.stringify(selectedEvidence.payload || {}, null, 2)}
-                          </pre>
-                        </>
+                        <FieldValueTable fields={selectedEvidence.payload || {}} />
                       ) : (
-                        <p className="text-[12px] text-text-muted">Select an evidence document to inspect extracted fields.</p>
+                        <p className="text-[12px] text-text-muted">Select a document to review extracted fields.</p>
                       )}
                     </div>
                   </div>
                 </Card>
               </>
             ) : (
-              <Card className="p-16 text-center text-text-muted">No blueprint insights yet.</Card>
+              <Card className="p-16 text-center text-text-muted">Select a document type to see health details.</Card>
             )}
           </div>
         </div>
       )}
+
+      <TechnicalDetailsDrawer
+        open={technicalDrawerOpen}
+        onClose={() => setTechnicalDrawerOpen(false)}
+        title={copy.expert.technicalDetails}
+        json={technicalDrawerPayload}
+      />
     </div>
   );
 }

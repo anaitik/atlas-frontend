@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiClient } from "../../lib/api-client";
 import { BlockchainBadge } from "../../components/ui/BlockchainBadge";
-import { env } from "../../lib/env";
+import { EvidenceMap } from "../../components/trust/EvidenceMap";
+import { useExperienceMode } from "../../hooks/useExperienceMode";
+import { usePersonaMode } from "../../hooks/usePersonaMode";
+import { copy } from "../../lib/copy";
+import { formatLineageMetricLabel, formatLineageSource, formatFrameworkCode } from "../../lib/display-labels";
+import { Button } from "../../components/ui/Button";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface Question {
@@ -255,6 +260,10 @@ function QuestionCard({
 // ── Main Component ────────────────────────────────────────────────────────────
 export function ReportStudio() {
   const { workspaceId } = useParams();
+  const { isSimple } = useExperienceMode();
+  const { isLead } = usePersonaMode();
+  const [leadStep, setLeadStep] = useState(0);
+  const leadView = isSimple || isLead;
 
   const activeCompanyId = (() => {
     try { return JSON.parse(localStorage.getItem("atlas-workspace") || "{}").state?.activeCompanyId || null; }
@@ -281,6 +290,25 @@ export function ReportStudio() {
   const activeReport = selectedReportId
     ? reports.find((r) => r.id === selectedReportId) || reports[0]
     : reports[0];
+
+  const evidenceRows = useMemo(() => {
+    if (!activeReport?.data_lineage?.length) return [];
+    return activeReport.data_lineage.map((item: any, i: number) => ({
+      id: String(i),
+      metricLabel: formatLineageMetricLabel(item),
+      value: item.value != null ? `${item.value} ${item.unit || ""}`.trim() : undefined,
+      status: "verified" as const,
+      source: formatLineageSource(item),
+    }));
+  }, [activeReport]);
+
+  const reportDraftPercent = useMemo(() => {
+    if (!activeReport?.sections) return 0;
+    const sections = Object.values(activeReport.sections);
+    if (!sections.length) return 0;
+    const filled = sections.filter((s) => s.content && String(s.content).length > 20).length;
+    return Math.round((filled / sections.length) * 100);
+  }, [activeReport]);
 
   // ── Data Fetching ────────────────────────────────────────────────────────
   const fetchReports = useCallback(async () => {
@@ -447,20 +475,40 @@ export function ReportStudio() {
       overflow: "hidden",
       boxSizing: "border-box"
     }}>
-      {env.DEMO_MODE && (
-        <div className="rounded-lg border border-atlas-200 bg-atlas-50 px-3 py-2 text-[12px] text-atlas-800 mb-3">
-          <strong>Act 7 cue:</strong> Generate CSRD report, then verify report hash and version lineage.
-        </div>
-      )}
-
       {/* ── Page Header ─────────────────────────────────────────────────── */}
       <header style={{ padding: "0 0 16px", flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
           <div style={{ flex: 1 }}>
-            <h1 className="atlas-page-title" style={{ color: "var(--color-atlas-600)" }}>Report Studio</h1>
+            <h1 className="atlas-page-title" style={{ color: "var(--color-atlas-600)" }}>
+              {leadView ? copy.nav.report : "Report Studio"}
+            </h1>
             <p className="atlas-page-subtitle">
-              Generate investor-grade ESG reports aligned with CSRD, GRI, and TCFD from verified workspace data.
+              {leadView
+                ? `Build your sustainability report from verified data — ${reportDraftPercent}% draft complete.`
+                : "Generate investor-grade ESG reports aligned with CSRD, GRI, and TCFD from verified workspace data."}
             </p>
+            {isLead && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {[
+                  { id: 0, label: copy.report.chooseFramework },
+                  { id: 1, label: copy.report.buildSections },
+                  { id: 2, label: copy.report.verifyPublish },
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setLeadStep(s.id)}
+                    className={`text-[11px] font-semibold px-3 py-1.5 rounded-full border ${
+                      leadStep === s.id
+                        ? "bg-atlas-600 text-white border-atlas-600"
+                        : "bg-white text-text-secondary border-border"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {/* Workflow actions */}
@@ -534,8 +582,35 @@ export function ReportStudio() {
         )}
       </header>
 
+      {leadView && activeReport && evidenceRows.length > 0 && (!isLead || leadStep >= 2) && (
+        <div className="mb-4 shrink-0">
+          <EvidenceMap rows={evidenceRows} title={copy.trust.verificationSummary} />
+        </div>
+      )}
+
+      {isLead && leadStep === 0 && (
+        <div className="mb-4 shrink-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {FRAMEWORKS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setFramework(f.value)}
+              className={`text-left p-4 rounded-xl border transition-colors ${
+                framework === f.value ? "border-atlas-500 bg-atlas-50 ring-1 ring-atlas-500/20" : "border-border bg-white"
+              }`}
+            >
+              <p className="text-[14px] font-bold text-text-primary">{f.label}</p>
+              <p className="text-[12px] text-text-secondary mt-1">{f.desc}</p>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* ── Main 3-Column Layout ─────────────────────────────────────────── */}
-      <div className="report-studio-grid" style={{ 
+      {!(isLead && leadStep === 0) && (
+      <div
+        className={`report-studio-grid${leadView ? " simple-mode" : ""}`}
+        style={{
         flex: 1, 
         display: "grid", 
         gap: 20, 
@@ -653,7 +728,7 @@ export function ReportStudio() {
               <div className="flex items-center gap-3">
                 <span className="material-symbols-outlined text-[18px] text-atlas-600">description</span>
                 <span className="text-[13px] font-bold text-text-primary">
-                  {activeReport.output_format.toUpperCase()} · {activeReport.reporting_year}
+                  {formatFrameworkCode(activeReport.output_format)} · {activeReport.reporting_year}
                 </span>
                 <StatusPill status={activeReport.status} />
                 <span className="text-[10px] bg-white border border-border text-text-secondary px-2 py-0.5 rounded-md font-bold">
@@ -753,7 +828,7 @@ export function ReportStudio() {
                 <div style={{ marginBottom: 40 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                     <h2 style={{ fontSize: 26, fontWeight: 800, color: "#0f2d17", letterSpacing: "-0.5px" }}>
-                      {activeReport.output_format.toUpperCase()} Sustainability Report {activeReport.reporting_year}
+                      {formatFrameworkCode(activeReport.output_format)} Sustainability Report {activeReport.reporting_year}
                     </h2>
                     {activeReport.sha256_hash && reportVerifications[activeReport.id] && (
                       <BlockchainBadge 
@@ -855,7 +930,7 @@ export function ReportStudio() {
                             {STATUS_CONFIG[r.status]?.label || r.status}
                           </span>
                         </div>
-                        <div className="text-[10px] text-text-muted">{r.output_format.toUpperCase()} · {new Date(r.updated_at).toLocaleDateString()}</div>
+                        <div className="text-[10px] text-text-muted">{formatFrameworkCode(r.output_format)} · {new Date(r.updated_at).toLocaleDateString()}</div>
                       </button>
                     </div>
                   );
@@ -916,10 +991,19 @@ export function ReportStudio() {
                     return (
                       <div key={i} style={{ padding: "6px 8px", background: "#f8fafc", borderRadius: 6, border: "1px solid #f1f5f9" }}>
                         <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span style={{ fontSize: 10, fontFamily: "monospace", fontWeight: 700, color: m.color }}>{item.metric_code}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: m.color }}>
+                            {formatLineageMetricLabel(item)}
+                          </span>
                           <span style={{ fontSize: 10, fontWeight: 700, color: "#1e293b" }}>{item.value} {item.unit}</span>
                         </div>
-                        <p style={{ fontSize: 10, color: "#64748b", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</p>
+                        {item.name && item.name !== item.metric_code && (
+                          <p style={{ fontSize: 10, color: "#64748b", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</p>
+                        )}
+                        {formatLineageSource(item) && (
+                          <p style={{ fontSize: 10, color: "#94a3b8", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            Source: {formatLineageSource(item)}
+                          </p>
+                        )}
                       </div>
                     );
                   })}
@@ -929,6 +1013,7 @@ export function ReportStudio() {
           )}
         </div>
       </div>
+      )}
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -976,7 +1061,46 @@ export function ReportStudio() {
             display: none;
           }
         }
+
+        .report-studio-grid.simple-mode {
+          grid-template-columns: 1fr !important;
+        }
+        .report-studio-grid.simple-mode .report-studio-sidebar-left,
+        .report-studio-grid.simple-mode .report-studio-sidebar-right {
+          display: none !important;
+        }
       `}</style>
+
+      {isLead && activeReport && (
+        <div className="shrink-0 mt-4 p-4 rounded-xl border border-border bg-surface shadow-lg flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[13px] font-bold text-text-primary">{copy.report.stickyPublish}</p>
+            <p className="text-[12px] text-text-secondary">
+              {reportDraftPercent}% draft · {STATUS_CONFIG[activeReport.status]?.label || activeReport.status}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {activeReport.status === "draft" && (
+              <Button variant="outline" onClick={() => handleWorkflow("submit-for-review")} disabled={workflowLoading}>
+                Submit for review
+              </Button>
+            )}
+            {activeReport.status === "approved" && (
+              <Button onClick={() => handleWorkflow("publish")} disabled={workflowLoading}>
+                Publish report
+              </Button>
+            )}
+            {(activeReport.status === "approved" || activeReport.status === "published") && (
+              <Button variant="outline" onClick={() => handleExport("xhtml")}>
+                Export
+              </Button>
+            )}
+            <Button onClick={handleGenerate} disabled={generating}>
+              {generating ? "Generating…" : "Regenerate draft"}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

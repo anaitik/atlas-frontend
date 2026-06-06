@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, useParams } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
 import { RouteErrorBoundary } from "./components/layout/RouteErrorBoundary";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
@@ -18,12 +18,19 @@ import { MetricsDashboard } from "./pages/workspace/MetricsDashboard";
 import { WorkspaceMembers } from "./pages/workspace/WorkspaceMembers";
 import { TemplateManager } from "./pages/workspace/TemplateManager";
 import { ReportStudio } from "./pages/workspace/ReportStudio";
-import { PipelineStory } from "./pages/workspace/PipelineStory";
+import { WorkspaceHub } from "./pages/workspace/WorkspaceHub";
+import { DocumentsPage } from "./pages/workspace/DocumentsPage";
+import { EvidencePage } from "./pages/workspace/EvidencePage";
 
 const ALL_ROLES = ["system_admin", "company_owner", "sustainability_manager", "data_reviewer", "report_viewer"];
 const ANALYST_AND_UP = ["system_admin", "company_owner", "sustainability_manager", "data_reviewer"];
 const MANAGER_AND_UP = ["system_admin", "company_owner", "sustainability_manager"];
 const OWNER_AND_UP = ["system_admin", "company_owner"];
+
+function StoryToEvidenceRedirect() {
+  const { workspaceId } = useParams();
+  return <Navigate to={workspaceId ? `/w/${workspaceId}/evidence` : "/"} replace />;
+}
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -67,9 +74,12 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute allowedRoles={ALL_ROLES} />,
         children: [
           { path: "/c/:companyId", element: <CompanyHome /> },
+          { path: "/w/:workspaceId", element: <WorkspaceHub /> },
+          { path: "/w/:workspaceId/documents", element: <DocumentsPage /> },
+          { path: "/w/:workspaceId/evidence", element: <EvidencePage /> },
           { path: "/w/:workspaceId/metrics", element: <MetricsDashboard /> },
           { path: "/w/:workspaceId/report", element: <ReportStudio /> },
-          { path: "/w/:workspaceId/story", element: <PipelineStory /> },
+          { path: "/w/:workspaceId/story", element: <StoryToEvidenceRedirect /> },
         ]
       },
       { path: "/", element: <Navigate to="/login" replace /> },

@@ -3,6 +3,7 @@ import { apiClient } from "../../lib/api-client";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
+import { formatRoleLabel, formatStatusLabel } from "../../lib/display-labels";
 import { UserOut } from "../../types/api-overrides";
 
 export function UserManagement() {
@@ -91,8 +92,8 @@ function UserRow({ user, companies, onApprove }: { user: UserOut, companies: any
         <p className="text-[11px] text-text-secondary">{user.email}</p>
       </td>
       <td>
-        <Badge variant={user.status === 'pending' ? 'amber' : 'green'}>
-          {user.status.toUpperCase()}
+        <Badge variant={user.status === "pending" ? "amber" : "green"}>
+          {formatStatusLabel(user.status)}
         </Badge>
       </td>
       <td>
@@ -111,11 +112,11 @@ function UserRow({ user, companies, onApprove }: { user: UserOut, companies: any
           onChange={e => setSelectedRole(e.target.value as any)}
           className="atlas-input py-1.5 text-[12px] min-w-[180px]"
         >
-          <option value="report_viewer">Report Viewer</option>
-          <option value="data_reviewer">Data Reviewer</option>
-          <option value="sustainability_manager">Sustainability Manager</option>
-          <option value="company_owner">Company Owner</option>
-          <option value="system_admin">System Admin</option>
+          <option value="report_viewer">{formatRoleLabel("report_viewer")}</option>
+          <option value="data_reviewer">{formatRoleLabel("data_reviewer")}</option>
+          <option value="sustainability_manager">{formatRoleLabel("sustainability_manager")}</option>
+          <option value="company_owner">{formatRoleLabel("company_owner")}</option>
+          <option value="system_admin">{formatRoleLabel("system_admin")}</option>
         </select>
       </td>
       <td className="text-right">

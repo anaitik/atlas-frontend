@@ -3,6 +3,7 @@ import { Card } from "../../components/ui/Card";
 import { StatCard } from "../../components/ui/StatCard";
 import { Badge } from "../../components/ui/Badge";
 import { apiClient } from "../../lib/api-client";
+import { formatAuditActor, formatEntityTable, formatEventType } from "../../lib/display-labels";
 
 export function AdminDashboard() {
   const [stats, setStats] = useState<any>(null);
@@ -58,11 +59,9 @@ export function AdminDashboard() {
                     <span className="material-symbols-outlined text-text-muted text-[20px]">monitor_heart</span>
                   </div>
                   <div>
-                    <p className="text-[13px] font-bold text-text-primary">{log.event_type.replace(/_/g, " ").toUpperCase()}</p>
+                    <p className="text-[13px] font-bold text-text-primary">{formatEventType(log.event_type)}</p>
                     <p className="text-[12px] text-text-secondary mt-0.5">
-                      Actor: <span className="font-medium text-text-primary">{log.actor_user_id || "system"}</span> · 
-                      Entity: <span className="font-medium text-text-primary">{log.entity_table || "n/a"}</span> 
-                      ({log.entity_id?.slice(0, 8) || "—"})
+                      {formatAuditActor(log.actor_user_id)} · {formatEntityTable(log.entity_table)}
                     </p>
                   </div>
                 </div>

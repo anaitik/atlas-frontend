@@ -16,6 +16,8 @@ type Stage = {
 interface PipelineTrackerProps {
   stages: Stage[];
   className?: string;
+  title?: string;
+  subtitle?: string;
 }
 
 function StageConnector({ status }: { status: "idle" | "active" | "done" }) {
@@ -36,13 +38,14 @@ function StageConnector({ status }: { status: "idle" | "active" | "done" }) {
   );
 }
 
-export function PipelineTracker({ stages, className = "" }: PipelineTrackerProps) {
+export function PipelineTracker({ stages, className = "", title = "Processing status", subtitle }: PipelineTrackerProps) {
+  const displaySubtitle = subtitle ?? "Upload → Secure → Review → Metrics";
   return (
     <div className={`bg-surface border border-border rounded-xl p-6 ${className}`}>
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h3 className="text-[13px] font-bold text-text-primary">Data Pipeline Status</h3>
-          <p className="text-[11px] text-text-muted mt-0.5">Document → Blockchain → AI → Review → Metrics</p>
+          <h3 className="text-[13px] font-bold text-text-primary">{title}</h3>
+          <p className="text-[11px] text-text-muted mt-0.5">{displaySubtitle}</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">
@@ -112,11 +115,11 @@ export function PipelineTracker({ stages, className = "" }: PipelineTrackerProps
 /** Pre-built default pipeline stages for ESG document processing */
 export function getDefaultPipelineStages(overrides?: Partial<Record<string, PipelineStageStatus>>): Stage[] {
   const stages: Stage[] = [
-    { id: "upload", label: "Upload", icon: "upload_file", description: "Source doc", status: "idle" },
-    { id: "fingerprint", label: "Fingerprint", icon: "fingerprint", description: "SHA-256", status: "idle" },
-    { id: "anchor", label: "Anchor", icon: "shield", description: "Blockchain", status: "idle" },
-    { id: "extract", label: "Extract", icon: "auto_awesome", description: "AI Agent", status: "idle" },
-    { id: "review", label: "Review", icon: "verified", description: "Human-in-loop", status: "idle" },
+    { id: "upload", label: "Upload", icon: "upload_file", description: "File received", status: "idle" },
+    { id: "fingerprint", label: "Secure", icon: "shield", description: "Fingerprinted", status: "idle" },
+    { id: "anchor", label: "Verify", icon: "verified", description: "Recorded", status: "idle" },
+    { id: "extract", label: "Extract", icon: "auto_awesome", description: "Values found", status: "idle" },
+    { id: "review", label: "Review", icon: "rate_review", description: "Ready to approve", status: "idle" },
   ];
 
   if (overrides) {
@@ -127,5 +130,20 @@ export function getDefaultPipelineStages(overrides?: Partial<Record<string, Pipe
     }
   }
 
+  return stages;
+}
+
+/** Owner-facing 3-step pipeline (backend steps unchanged) */
+export function getSimplePipelineStages(overrides?: Partial<Record<string, PipelineStageStatus>>): Stage[] {
+  const stages: Stage[] = [
+    { id: "upload", label: "Uploaded", icon: "upload_file", description: "Files received", status: "idle" },
+    { id: "process", label: "Secured & processed", icon: "shield", description: "Extracted", status: "idle" },
+    { id: "review", label: "Reviewed", icon: "verified", description: "Approved", status: "idle" },
+  ];
+  if (overrides) {
+    for (const stage of stages) {
+      if (overrides[stage.id]) stage.status = overrides[stage.id]!;
+    }
+  }
   return stages;
 }

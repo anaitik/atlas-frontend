@@ -49,6 +49,10 @@
   --color-info: #2563eb;
   --color-info-bg: #eff6ff;
   --color-info-border: #bfdbfe;
+
+  /* ── Layout v2 (period hub / report) ─────────────── */
+  --layout-period-hero-radius: 1rem;
+  --layout-sticky-bar-shadow: 0 -4px 24px rgba(15, 29, 21, 0.08);
 }
 
 /* ── Base Reset ─────────────────────────────────── */
@@ -529,6 +533,12 @@
 .skeleton-card {
   height: 120px;
   border-radius: 12px;
+}
+
+.atlas-table-comfortable th,
+.atlas-table-comfortable td {
+  padding: 12px 16px;
+  font-size: 13px;
 }
 
 /* ── Print Optimization ────────────────────────── */

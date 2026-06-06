@@ -2,6 +2,7 @@ import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../../store/auth";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
+import { HelpPanel } from "./HelpPanel";
 
 export function AppShell() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated());
@@ -25,6 +26,7 @@ export function AppShell() {
           </div>
         </main>
       </div>
+      <HelpPanel />
     </div>
   );
 }

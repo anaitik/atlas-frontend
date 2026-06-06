@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { truncateHash, formatStatusLabel } from "../../lib/display-labels";
 import { apiClient } from "../../lib/api-client";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { env } from "../../lib/env";
+import { InlineAlert } from "../../components/ui/InlineAlert";
 
 interface Company {
   id: string;
@@ -19,6 +21,7 @@ export function CompanyManagement() {
   const [newCompanyName, setNewCompanyName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isPreparingDemo, setIsPreparingDemo] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   const fetchCompanies = async () => {
     try {
@@ -46,7 +49,7 @@ export function CompanyManagement() {
       await fetchCompanies();
     } catch (e: any) {
       console.error("Provisioning failed:", e);
-      alert(`Failed to provision entity: ${e.message || "Unknown error"}`);
+      setStatusError(`Failed to create company: ${e.message || "Unknown error"}`);
     } finally {
       setIsCreating(false);
     }
@@ -73,10 +76,10 @@ export function CompanyManagement() {
       if (existing) {
         navigate(`/c/${existing.id}`);
       } else {
-        alert("Unable to prepare NovaTerra automatically. Please create it manually.");
+        setStatusError("Unable to prepare NovaTerra automatically. Please create it manually.");
       }
     } catch (e: any) {
-      alert(`Demo preparation failed: ${e.message || "Unknown error"}`);
+      setStatusError(`Demo preparation failed: ${e.message || "Unknown error"}`);
     } finally {
       setIsPreparingDemo(false);
     }
@@ -85,6 +88,11 @@ export function CompanyManagement() {
 
   return (
     <div className="space-y-6">
+      {statusError && (
+        <InlineAlert variant="danger" onDismiss={() => setStatusError(null)}>
+          {statusError}
+        </InlineAlert>
+      )}
       {env.DEMO_MODE && (
         <div className="rounded-lg border border-atlas-200 bg-atlas-50 px-3 py-2 text-[12px] text-atlas-800">
           <strong>Act 2 cue:</strong> Provision NovaTerra, then highlight role-based segregation of duties.
@@ -118,7 +126,7 @@ export function CompanyManagement() {
           <thead>
             <tr>
               <th>Entity Name</th>
-              <th>Tenant ID</th>
+              <th>Reference</th>
               <th>Status</th>
               <th className="text-right">Actions</th>
             </tr>
@@ -127,10 +135,12 @@ export function CompanyManagement() {
             {companies.map(c => (
               <tr key={c.id}>
                 <td className="font-semibold text-text-primary">{c.name}</td>
-                <td className="font-mono text-[11px] text-text-muted">{c.id}</td>
+                <td className="text-[11px] text-text-muted" title={c.id}>
+                  {truncateHash(c.id, 6)}
+                </td>
                 <td>
                   <Badge variant={c.status === 'active' ? 'green' : 'red'}>
-                    {c.status.toUpperCase()}
+                    {formatStatusLabel(c.status)}
                   </Badge>
                 </td>
                 <td className="text-right">

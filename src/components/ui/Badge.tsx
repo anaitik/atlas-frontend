@@ -46,6 +46,7 @@ export function StatusBadge({ status }: { status: string }) {
     pending_approval: { variant: "amber", label: "Awaiting Approval" },
     review_required: { variant: "amber", label: "Review Req" },
     needs_review: { variant: "amber", label: "Needs Review" },
+    pending_review: { variant: "amber", label: "Awaiting Review" },
     manual_required: { variant: "amber", label: "Manual Req" },
     suspect: { variant: "amber", label: "Suspect" },
     urgent: { variant: "red", label: "Urgent" },

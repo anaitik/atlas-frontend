@@ -1,12 +1,15 @@
 import { useAuthStore } from "../../store/auth";
 import { useWorkspaceStore } from "../../store/workspace";
 import { useNavigate, useLocation } from "react-router-dom";
+import { copy } from "../../lib/copy";
+import { useUiPreferencesStore } from "../../store/uiPreferences";
+import { usePersonaMode } from "../../hooks/usePersonaMode";
 
-const PIPELINE_STAGES = [
-  { label: "Collect", icon: "upload_file", stage: "collect" },
-  { label: "Review", icon: "verified", stage: "review" },
-  { label: "Metrics", icon: "bar_chart", stage: "metrics" },
-  { label: "Report", icon: "description", stage: "report" },
+const EXPERT_PIPELINE = [
+  { label: copy.nav.approvalQueue, icon: "verified", path: (id: string) => `/w/${id}/review` },
+  { label: copy.expert.metricsTitle, icon: "bar_chart", path: (id: string) => `/w/${id}/metrics` },
+  { label: copy.nav.documentTypes, icon: "account_tree", path: (id: string) => `/w/${id}/templates` },
+  { label: copy.nav.evidenceTrail, icon: "timeline", path: (id: string) => `/w/${id}/evidence` },
 ];
 
 export function Sidebar() {
@@ -14,6 +17,8 @@ export function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { activeCompanyId, activeWorkspaceId, activeWorkspaceName, resetWorkspaceContext } = useWorkspaceStore();
+  const setHelpPanelOpen = useUiPreferencesStore((s) => s.setHelpPanelOpen);
+  const { isLead, isExpert, isStaff, toggleExperienceMode, showTechnicalDetails, toggleTechnicalDetails } = usePersonaMode();
 
   const handleLogout = () => {
     resetWorkspaceContext();
@@ -23,16 +28,13 @@ export function Sidebar() {
 
   const isAdmin = user?.role === "system_admin";
   const canManageMembers = user?.role === "system_admin" || user?.role === "company_owner";
-
   const currentPath = location.pathname;
-  const getActiveStage = () => {
-    if (currentPath.includes("/extraction")) return "collect";
-    if (currentPath.includes("/review")) return "review";
-    if (currentPath.includes("/metrics")) return "metrics";
-    if (currentPath.includes("/report")) return "report";
-    return null;
-  };
-  const activeStage = getActiveStage();
+  const roleLabel = user?.role ? copy.roles[user.role as keyof typeof copy.roles] || user.role : "";
+
+  const navBtn = (active: boolean) =>
+    active
+      ? "bg-sidebar-active-bg text-atlas-400 border-l-2 border-sidebar-active-border -ml-[2px] pl-[14px]"
+      : "text-sidebar-text hover:bg-sidebar-hover hover:text-text-on-dark";
 
   return (
     <aside className="w-[220px] h-full bg-sidebar-bg flex flex-col shrink-0 border-r border-sidebar-border">
@@ -47,20 +49,16 @@ export function Sidebar() {
           </div>
           <div>
             <div className="text-[15px] font-bold text-text-on-dark tracking-tight">Atlas</div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-atlas-400">ESG Reporting Hub</div>
+            <div className="text-[10px] font-medium text-atlas-400">Sustainability reporting</div>
           </div>
         </div>
       </div>
 
       {activeWorkspaceId && !isAdmin && (
         <div className="mx-3 mt-3 bg-sidebar-surface border border-sidebar-border rounded-lg p-3">
-          <div className="text-[10px] uppercase tracking-[0.06em] text-sidebar-text-dim font-medium">Active workspace</div>
-          <div className="text-[12px] font-semibold text-text-on-dark mt-0.5 truncate" title={activeWorkspaceName || "Active"}>
-            {activeWorkspaceName || "Current Period"}
-          </div>
-          <div className="text-[11px] text-atlas-400 mt-0.5 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-atlas-400 inline-block"></span>
-            In Progress
+          <div className="text-[10px] text-sidebar-text-dim font-medium">{copy.nav.thisPeriod}</div>
+          <div className="text-[12px] font-semibold text-text-on-dark mt-0.5 truncate" title={activeWorkspaceName || ""}>
+            {activeWorkspaceName || "Current period"}
           </div>
         </div>
       )}
@@ -68,7 +66,7 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto sidebar-scroll px-3 pt-4">
         {isAdmin ? (
           <div className="space-y-0.5">
-            <div className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-sidebar-text-dim">Administration</div>
+            <div className="px-3 mb-2 text-[10px] font-semibold text-sidebar-text-dim">Administration</div>
             {[
               { label: "Dashboard", path: "/admin", icon: "space_dashboard" },
               { label: "Companies", path: "/admin/companies", icon: "domain" },
@@ -78,12 +76,9 @@ export function Sidebar() {
               return (
                 <button
                   key={item.label}
+                  type="button"
                   onClick={() => navigate(item.path)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[12px] font-medium transition-all duration-150 ${
-                    active
-                      ? "bg-sidebar-active-bg text-atlas-400 border-l-2 border-sidebar-active-border -ml-[2px] pl-[14px]"
-                      : "text-sidebar-text hover:bg-sidebar-hover hover:text-text-on-dark"
-                  }`}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[12px] font-medium transition-all ${navBtn(active)}`}
                 >
                   <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
                   {item.label}
@@ -93,103 +88,89 @@ export function Sidebar() {
           </div>
         ) : (
           <>
-            {activeWorkspaceId && (
+            {activeCompanyId && (
+              <button
+                type="button"
+                onClick={() => navigate(`/c/${activeCompanyId}`)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[12px] font-medium mb-2 transition-all ${navBtn(
+                  currentPath === `/c/${activeCompanyId}`
+                )}`}
+              >
+                <span className="material-symbols-outlined text-[18px]">home</span>
+                {copy.nav.home}
+              </button>
+            )}
+
+            {activeWorkspaceId ? (
               <>
-                {activeCompanyId && (
-                  <button
-                    onClick={() => navigate(`/c/${activeCompanyId}`)}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-[12px] font-medium text-sidebar-text hover:bg-sidebar-hover hover:text-text-on-dark transition-all duration-150 mb-3"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-                    Workspace Hub
-                  </button>
-                )}
+                {[
+                  { label: copy.nav.thisPeriod, path: `/w/${activeWorkspaceId}`, icon: "dashboard" },
+                  {
+                    label: isLead ? copy.nav.documents : copy.nav.upload,
+                    path: isLead ? `/w/${activeWorkspaceId}/documents` : `/w/${activeWorkspaceId}/extraction`,
+                    icon: "upload_file",
+                  },
+                  { label: copy.nav.report, path: `/w/${activeWorkspaceId}/report`, icon: "description" },
+                  ...(isLead
+                    ? [{ label: copy.nav.evidence, path: `/w/${activeWorkspaceId}/evidence`, icon: "shield" as const }]
+                    : []),
+                ].map((item) => {
+                  const active =
+                    item.path === `/w/${activeWorkspaceId}`
+                      ? currentPath === item.path
+                      : currentPath.startsWith(item.path);
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => navigate(item.path)}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[12px] font-medium transition-all ${navBtn(active)}`}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
+                      {item.label}
+                    </button>
+                  );
+                })}
 
-                <div className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-sidebar-text-dim">Pipeline</div>
-                <div className="space-y-0.5">
-                  {PIPELINE_STAGES.map((stage) => {
-                    const pathMap: Record<string, string> = {
-                      collect: `/w/${activeWorkspaceId}/extraction`,
-                      review: `/w/${activeWorkspaceId}/review`,
-                      metrics: `/w/${activeWorkspaceId}/metrics`,
-                      report: `/w/${activeWorkspaceId}/report`,
-                    };
-                    const active = activeStage === stage.stage;
-
-                    return (
-                      <button
-                        key={stage.stage}
-                        onClick={() => navigate(pathMap[stage.stage])}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[12px] font-medium transition-all duration-150 ${
-                          active
-                            ? "bg-sidebar-active-bg text-atlas-400 border-l-2 border-sidebar-active-border -ml-[2px] pl-[14px]"
-                            : "text-sidebar-text hover:bg-sidebar-hover hover:text-text-on-dark"
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-[18px]">{stage.icon}</span>
-                        {stage.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mx-0 mt-4 bg-sidebar-surface border border-sidebar-border rounded-lg p-3">
-                  <div className="text-[10px] uppercase tracking-[0.06em] text-sidebar-text-dim font-semibold mb-2.5">Pipeline Progress</div>
-                  {PIPELINE_STAGES.map((stage, i) => {
-                    const stageIdx = PIPELINE_STAGES.findIndex((s) => s.stage === activeStage);
-                    const isDone = stageIdx > i;
-                    const isCurrent = stageIdx === i;
-                    return (
-                      <div key={stage.stage} className="flex items-center gap-2 mb-1.5 last:mb-0">
-                        <div
-                          className={`w-[7px] h-[7px] rounded-full shrink-0 ${
-                            isDone ? "bg-atlas-400" : isCurrent ? "bg-warning" : "bg-sidebar-border"
-                          }`}
-                        />
-                        <span
-                          className={`text-[11px] ${
-                            isDone ? "text-sidebar-text line-through" : isCurrent ? "text-warning font-medium" : "text-sidebar-text-dim"
-                          }`}
-                        >
-                          {stage.label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-sidebar-border space-y-0.5">
-                  {[
-                    { label: "Templates", path: `/w/${activeWorkspaceId}/templates`, icon: "account_tree", visible: true },
-                    { label: "Members", path: `/w/${activeWorkspaceId}/members`, icon: "group", visible: canManageMembers },
-                    { label: "Story", path: `/w/${activeWorkspaceId}/story`, icon: "auto_stories", visible: true },
-                  ]
-                    .filter((item) => item.visible)
-                    .map((item) => {
-                      const active = currentPath.startsWith(item.path);
+                {isExpert && (
+                  <div className="mt-4 pt-3 border-t border-sidebar-border">
+                    <div className="px-3 mb-2 text-[10px] font-semibold text-sidebar-text-dim">{copy.nav.teamTools}</div>
+                    {EXPERT_PIPELINE.map((item) => {
+                      const path = item.path(activeWorkspaceId);
+                      const active = currentPath.startsWith(path);
                       return (
                         <button
                           key={item.label}
-                          onClick={() => navigate(item.path)}
-                          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[12px] font-medium transition-all duration-150 ${
-                            active
-                              ? "bg-sidebar-active-bg text-atlas-400 border-l-2 border-sidebar-active-border -ml-[2px] pl-[14px]"
-                              : "text-sidebar-text hover:bg-sidebar-hover hover:text-text-on-dark"
-                          }`}
+                          type="button"
+                          onClick={() => navigate(path)}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[12px] font-medium transition-all ${navBtn(active)}`}
                         >
                           <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
                           {item.label}
                         </button>
                       );
                     })}
-                </div>
+                    {canManageMembers && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/w/${activeWorkspaceId}/members`)}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[12px] font-medium transition-all ${navBtn(
+                          currentPath.includes("/members")
+                        )}`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">group</span>
+                        {copy.nav.members}
+                      </button>
+                    )}
+                  </div>
+                )}
               </>
-            )}
-
-            {!activeWorkspaceId && (
+            ) : (
               <div className="px-3 py-6 text-center">
-                <span className="material-symbols-outlined text-sidebar-text-dim text-2xl mb-2 block">workspaces</span>
-                <p className="text-[11px] text-sidebar-text-dim leading-relaxed">Select a workspace to see the pipeline</p>
+                <span className="material-symbols-outlined text-sidebar-text-dim text-2xl mb-2 block">calendar_month</span>
+                <p className="text-[11px] text-sidebar-text-dim leading-relaxed">
+                  Open a reporting period from your organization home to get started.
+                </p>
               </div>
             )}
           </>
@@ -197,21 +178,37 @@ export function Sidebar() {
       </nav>
 
       <div className="px-3 pb-2 space-y-0.5">
+        {!isAdmin && (
+          isStaff ? (
+            <button
+              type="button"
+              onClick={toggleTechnicalDetails}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[11px] font-medium text-sidebar-text hover:bg-sidebar-hover hover:text-text-on-dark"
+              title={copy.expert.showTechnicalDetails}
+            >
+              <span className="material-symbols-outlined text-[16px]">{showTechnicalDetails ? "code" : "visibility_off"}</span>
+              {copy.expert.showTechnicalDetails}
+              {showTechnicalDetails && <span className="ml-auto text-[9px] text-atlas-400">On</span>}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={toggleExperienceMode}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[11px] font-medium text-sidebar-text hover:bg-sidebar-hover hover:text-text-on-dark"
+              title={isExpert ? copy.modes.expertHint : copy.modes.simpleHint}
+            >
+              <span className="material-symbols-outlined text-[16px]">{isExpert ? "tune" : "auto_awesome"}</span>
+              {isExpert ? copy.modes.expert : copy.modes.simple} mode
+            </button>
+          )
+        )}
         <button
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[11px] text-sidebar-text-dim bg-sidebar-hover/40 cursor-not-allowed"
-          title="Workspace settings will ship in a later release"
-          disabled
-        >
-          <span className="material-symbols-outlined text-[16px]">settings</span>
-          Workspace Settings
-        </button>
-        <button
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[11px] text-sidebar-text-dim bg-sidebar-hover/40 cursor-not-allowed"
-          title="Support center will ship in a later release"
-          disabled
+          type="button"
+          onClick={() => setHelpPanelOpen(true)}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-[11px] font-medium text-sidebar-text hover:bg-sidebar-hover hover:text-text-on-dark"
         >
           <span className="material-symbols-outlined text-[16px]">help</span>
-          Support
+          {copy.nav.help}
         </button>
       </div>
 
@@ -222,9 +219,9 @@ export function Sidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[12px] font-medium text-text-on-dark truncate">{user?.full_name}</p>
-            <p className="text-[10px] text-sidebar-text-dim truncate">{user?.role?.replace("_", " ")}</p>
+            <p className="text-[10px] text-sidebar-text-dim truncate">{roleLabel}</p>
           </div>
-          <button onClick={handleLogout} className="text-sidebar-text-dim hover:text-atlas-400 transition-colors" title="Sign out">
+          <button type="button" onClick={handleLogout} className="text-sidebar-text-dim hover:text-atlas-400 transition-colors" title="Sign out">
             <span className="material-symbols-outlined text-[18px]">logout</span>
           </button>
         </div>

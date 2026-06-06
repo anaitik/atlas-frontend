@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/auth";
 import { useWorkspaceStore } from "../../store/workspace";
 import { apiClient } from "../../lib/api-client";
+import { defaultExperienceModeForRole, defaultPersonaForRole, useUiPreferencesStore } from "../../store/uiPreferences";
 
 interface LoginResponse {
   user: any;
@@ -25,6 +26,8 @@ export function LoginPage() {
   const setAuth = useAuthStore((state) => state.setAuth);
   const setActiveCompany = useWorkspaceStore((state) => state.setActiveCompany);
   const resetWorkspaceContext = useWorkspaceStore((state) => state.resetWorkspaceContext);
+  const setExperienceMode = useUiPreferencesStore((state) => state.setExperienceMode);
+  const setPersonaMode = useUiPreferencesStore((state) => state.setPersonaMode);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +41,8 @@ export function LoginPage() {
       });
       setAuth(data.access_token, data.user);
       resetWorkspaceContext();
+      setExperienceMode(defaultExperienceModeForRole(data.user.role));
+      setPersonaMode(defaultPersonaForRole(data.user.role));
 
       // Route based on role
       if (data.user.role === "system_admin") {
@@ -87,7 +92,7 @@ export function LoginPage() {
               <div>
                 <h1 className="text-xl font-bold text-white tracking-tight">Atlas</h1>
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-atlas-400">
-                  ESG Trust Infrastructure
+                  Sustainability reporting
                 </p>
               </div>
             </div>
@@ -96,23 +101,22 @@ export function LoginPage() {
           {/* Middle: Hero messaging */}
           <div className="my-auto">
             <h2 className="text-[40px] font-extrabold text-white leading-[1.1] tracking-tight mb-5">
-              The Trust Layer
+              Know where your
               <br />
-              <span className="text-gradient-green">for Sustainability</span>
+              <span className="text-gradient-green">sustainability report</span>
               <br />
-              Data
+              stands
             </h2>
             <p className="text-[15px] text-atlas-300/80 leading-relaxed max-w-md mb-10">
-              Blockchain-verified provenance from source document to published report.
-              Every metric auditable. Every data point immutable.
+              Every metric traceable to source documents. See what to do next before your deadline—with
+              tamper-evident records when anchoring is enabled.
             </p>
 
-            {/* Trust metrics */}
             <div className="grid grid-cols-3 gap-6">
               {[
-                { value: "Real-time", label: "Audit Trail", icon: "shield" },
-                { value: "Traceable", label: "Metric Lineage", icon: "bar_chart" },
-                { value: "Verifiable", label: "Report Integrity", icon: "description" },
+                { value: "Step-by-step", label: "Guided workflow", icon: "route" },
+                { value: "Traceable", label: "Evidence trail", icon: "bar_chart" },
+                { value: "Audit-ready", label: "Board export", icon: "description" },
               ].map((stat) => (
                 <div key={stat.label} className="glass-dark rounded-xl p-4">
                   <div className="flex items-center gap-2 mb-2">
@@ -128,13 +132,9 @@ export function LoginPage() {
           </div>
 
           {/* Bottom: Trust indicators */}
-          <div className="flex items-center gap-4">
-            {["Polygon PoS", "SHA-256", "CSRD Ready", "XBRL Compatible"].map((tag) => (
-              <span key={tag} className="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.06em] text-atlas-400/70 border border-atlas-400/15 bg-atlas-400/5">
-                {tag}
-              </span>
-            ))}
-          </div>
+          <p className="text-[11px] text-atlas-400/60 max-w-sm">
+            Cryptographic proof available for auditors in Expert mode.
+          </p>
         </div>
       </div>
 
@@ -166,16 +166,13 @@ export function LoginPage() {
               </svg>
             </div>
             <h1 className="text-2xl font-bold text-text-primary tracking-tight">Atlas</h1>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-atlas-600 mt-1">
-              ESG Reporting Hub
-            </p>
+            <p className="text-[11px] font-semibold text-atlas-600 mt-1">Sign in to your organization</p>
           </div>
 
-          {/* Heading */}
           <div className="text-center mb-6">
-            <h2 className="text-lg font-bold text-text-primary">Institutional Access</h2>
+            <h2 className="text-lg font-bold text-text-primary">Welcome back</h2>
             <p className="text-[13px] text-text-secondary mt-1">
-              Authenticate to manage global governance protocols.
+              Manage reporting periods, uploads, and audit-ready reports.
             </p>
           </div>
 
@@ -190,9 +187,7 @@ export function LoginPage() {
           {/* Fields */}
           <div className="space-y-4">
             <div>
-              <label className="block text-[12px] font-semibold uppercase tracking-[0.04em] text-text-secondary mb-1.5">
-                Institutional Email
-              </label>
+              <label className="block text-[12px] font-semibold text-text-secondary mb-1.5">Work email</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-text-muted text-[18px]">
                   mail
@@ -211,9 +206,7 @@ export function LoginPage() {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[12px] font-semibold uppercase tracking-[0.04em] text-text-secondary">
-                  Access Key
-                </label>
+                <label className="text-[12px] font-semibold text-text-secondary">Password</label>
                 <a href="#" className="text-[12px] font-medium text-atlas-600 hover:text-atlas-500 transition-colors">
                   Forgot Password?
                 </a>
@@ -274,9 +267,7 @@ export function LoginPage() {
           <div className="mt-8 flex flex-col items-center gap-3">
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-border bg-white/50">
               <span className="w-1.5 h-1.5 rounded-full bg-atlas-500 animate-atlas-pulse"></span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-text-secondary">
-                Verified ESG Endpoint
-              </span>
+              <span className="text-[10px] font-semibold text-text-secondary">Secure sign-in</span>
             </div>
             <div className="flex items-center gap-4 text-[12px] text-text-muted">
               <a href="#" className="hover:text-text-secondary transition-colors">Security Policy</a>

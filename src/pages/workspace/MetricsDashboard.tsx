@@ -8,6 +8,21 @@ import { ConfidenceBar } from "../../components/ui/ConfidenceBar";
 import { MiniDonutChart } from "../../components/ui/MiniDonutChart";
 import { Sparkline } from "../../components/ui/Sparkline";
 import { useWorkspaceStore } from "../../store/workspace";
+import { copy } from "../../lib/copy";
+import { usePersonaMode } from "../../hooks/usePersonaMode";
+import { FieldValueTable, SourceTrail, TechnicalDetailsDrawer } from "../../components/expert";
+import {
+  displayMetricLabel,
+  displayRecordTitle,
+  displayTemplateLabel,
+  formatMetricCode,
+  formatPillarLabel,
+  formatSourceType,
+  formatStatusLabel,
+  humanizeKey,
+  isCanonicalReportMetric,
+  metricSourceTypeRaw,
+} from "../../lib/display-labels";
 
 /** Generate fake 12-month sparkline data anchored to a final value */
 function generateSparkline(finalValue: number, months = 12): number[] {
@@ -93,90 +108,14 @@ function extractConfidence(metric: MetricRecord): number | null {
 }
 
 function sourceType(metric: MetricRecord) {
-  const type = metric.metadata?.source_type;
-  return typeof type === "string" ? type : "unknown";
-}
-
-type JsonNodeProps = {
-  nodeKey: string;
-  value: unknown;
-  path: string;
-  expandedPaths: Set<string>;
-  togglePath: (path: string) => void;
-  onLeafClick: (path: string) => void;
-  selectedLeafPath: string | null;
-  depth?: number;
-};
-
-function JsonNode({
-  nodeKey,
-  value,
-  path,
-  expandedPaths,
-  togglePath,
-  onLeafClick,
-  selectedLeafPath,
-  depth = 0,
-}: JsonNodeProps) {
-  const isObject = typeof value === "object" && value !== null;
-  const isArray = Array.isArray(value);
-  const isExpanded = expandedPaths.has(path);
-
-  if (!isObject) {
-    const isSelected = selectedLeafPath === path;
-    return (
-      <button
-        type="button"
-        onClick={() => onLeafClick(path)}
-        className={`w-full text-left flex items-start gap-2 text-[11px] rounded px-1 py-0.5 ${
-          isSelected ? "bg-atlas-100" : "hover:bg-atlas-50"
-        }`}
-      >
-        <span className="font-mono text-text-muted min-w-[120px]">{nodeKey}</span>
-        <span className="text-text-primary break-all">{String(value)}</span>
-      </button>
-    );
-  }
-
-  const entries = isArray
-    ? (value as unknown[]).map((item, index) => [`[${index}]`, item] as const)
-    : Object.entries(value as Record<string, unknown>);
-
-  return (
-    <div className="space-y-1">
-      <button
-        onClick={() => togglePath(path)}
-        className="flex items-center gap-1 text-[11px] font-semibold text-atlas-700 hover:text-atlas-800"
-      >
-        <span className="material-symbols-outlined text-[14px]">{isExpanded ? "expand_more" : "chevron_right"}</span>
-        <span className="font-mono">{nodeKey}</span>
-        <span className="text-text-muted">({isArray ? "array" : "object"}, {entries.length})</span>
-      </button>
-      {isExpanded && (
-        <div className="ml-4 pl-3 border-l border-border-light space-y-1">
-          {entries.map(([childKey, childValue]) => (
-            <JsonNode
-              key={`${path}.${childKey}`}
-              nodeKey={childKey}
-              value={childValue}
-              path={`${path}.${childKey}`}
-              expandedPaths={expandedPaths}
-              togglePath={togglePath}
-              onLeafClick={onLeafClick}
-              selectedLeafPath={selectedLeafPath}
-              depth={depth + 1}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
+  return formatSourceType(metricSourceTypeRaw(metric));
 }
 
 export function MetricsDashboard() {
   const { workspaceId } = useParams();
   const navigate = useNavigate();
   const activeCompanyId = useWorkspaceStore((state) => state.activeCompanyId);
+  const { showTechnicalDetails } = usePersonaMode();
 
   const [metrics, setMetrics] = useState<MetricRecord[]>([]);
   const [extractions, setExtractions] = useState<ExtractionRecord[]>([]);
@@ -190,8 +129,7 @@ export function MetricsDashboard() {
   const [viewMode, setViewMode] = useState<"standardized" | "raw">("standardized");
   const [selectedMetricId, setSelectedMetricId] = useState<string>("");
   const [selectedExtractionId, setSelectedExtractionId] = useState<string>("");
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set(["payload"]));
-  const [selectedLeafPath, setSelectedLeafPath] = useState<string | null>(null);
+  const [technicalDrawerOpen, setTechnicalDrawerOpen] = useState(false);
 
   useEffect(() => {
     if (!workspaceId || !activeCompanyId) return;
@@ -223,20 +161,34 @@ export function MetricsDashboard() {
 
   const summaryCards = useMemo(() => summary?.cards || [], [summary]);
 
+  const extractionsById = useMemo(
+    () => new Map(extractions.map((item) => [item.id, item])),
+    [extractions]
+  );
+
   const filteredMetrics = useMemo(() => {
     const byPillar = metrics.filter((metric) => (metric.pillar || "environmental") === activeTab);
+
     if (viewMode === "raw") {
-      return byPillar.filter((metric) => sourceType(metric) !== "metric_agent");
+      // Source values: per-document extraction sync rows only (not rolled-up totals).
+      return byPillar.filter((metric) => metricSourceTypeRaw(metric) === "extraction_sync");
     }
 
-    const standardized = byPillar.filter((metric) => sourceType(metric) === "metric_agent");
-    if (standardized.length > 0) {
-      return standardized;
+    // Report metrics: canonical rolled-up numbers from the ESG engine or metric agent.
+    const esgEngine = byPillar.filter((metric) => metricSourceTypeRaw(metric) === "esg_engine");
+    if (esgEngine.length > 0) {
+      return esgEngine;
     }
 
-    const canonicalCodes = new Set(summaryCards.map((card) => card.key));
-    return byPillar.filter((metric) => canonicalCodes.has(metric.metric_code));
-  }, [metrics, activeTab, viewMode, summaryCards]);
+    const metricAgent = byPillar.filter((metric) => metricSourceTypeRaw(metric) === "metric_agent");
+    if (metricAgent.length > 0) {
+      return metricAgent.filter(
+        (metric) => isCanonicalReportMetric(metric.metric_code) || !metric.metric_code.includes(":")
+      );
+    }
+
+    return byPillar.filter((metric) => isCanonicalReportMetric(metric.metric_code));
+  }, [metrics, activeTab, viewMode]);
 
   useEffect(() => {
     if (filteredMetrics.length === 0) {
@@ -262,14 +214,10 @@ export function MetricsDashboard() {
   useEffect(() => {
     if (traceExtractions.length === 0) {
       setSelectedExtractionId("");
-      setExpandedPaths(new Set(["payload"]));
-      setSelectedLeafPath(null);
       return;
     }
     if (!traceExtractions.some((item) => item.id === selectedExtractionId)) {
       setSelectedExtractionId(traceExtractions[0].id);
-      setExpandedPaths(new Set(["payload"]));
-      setSelectedLeafPath(null);
     }
   }, [traceExtractions, selectedExtractionId]);
 
@@ -281,7 +229,12 @@ export function MetricsDashboard() {
   const intelligenceFeed = useMemo(() => {
     const lines: string[] = [];
     if (insight?.rationale && insight.rationale.length > 0) {
-      lines.push(...insight.rationale.slice(0, 3).map((item) => item.reason));
+      lines.push(
+        ...insight.rationale.slice(0, 3).map((item) => {
+          const label = humanizeKey(item.metric_key);
+          return item.reason.includes(item.metric_key) ? item.reason.replace(item.metric_key, label) : `${label}: ${item.reason}`;
+        })
+      );
     }
     if (lines.length === 0) {
       lines.push("Recommendations are generated from approved extraction structure and available metric catalog.");
@@ -294,15 +247,6 @@ export function MetricsDashboard() {
     social_count: summary?.social_count || 0,
     governance_count: summary?.governance_count || 0,
     total_metrics: summary?.total_metrics || metrics.length || 0,
-  };
-
-  const togglePath = (path: string) => {
-    setExpandedPaths((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
-    });
   };
 
   const approveMetric = async (metricId: string, e: React.MouseEvent) => {
@@ -351,8 +295,8 @@ export function MetricsDashboard() {
     <div className="space-y-6">
       <header className="flex items-start justify-between">
         <div>
-          <h1 className="atlas-page-title text-atlas-600">Metrics Studio</h1>
-          <p className="atlas-page-subtitle">Consolidating standardized ESG indicators across your workspace documents.</p>
+          <h1 className="atlas-page-title text-atlas-600">{copy.expert.metricsTitle}</h1>
+          <p className="atlas-page-subtitle">{copy.expert.metricsSubtitle}</p>
         </div>
         <div className="flex gap-3 items-center">
           <Button variant="ghost" className="bg-white border-border" onClick={() => window.location.reload()}>
@@ -425,8 +369,8 @@ export function MetricsDashboard() {
           <Card className="p-4 border-border shadow-sm">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
-                <h2 className="text-[15px] font-bold text-text-primary">Report-Ready Metrics</h2>
-                <p className="text-[12px] text-text-secondary mt-1">Focus on standardized outputs first. Explore raw extracted signals only when needed.</p>
+                <h2 className="text-[15px] font-bold text-text-primary">{copy.expert.reportMetrics}</h2>
+                <p className="text-[12px] text-text-secondary mt-1">Verified numbers for your report. Switch to source values when you need underlying documents.</p>
               </div>
               <div className="flex p-1 bg-surface-secondary rounded-xl border border-border w-fit">
                 <button
@@ -435,7 +379,7 @@ export function MetricsDashboard() {
                     viewMode === "standardized" ? "bg-white text-atlas-600 border border-border" : "text-text-muted"
                   }`}
                 >
-                  Standardized
+                  {copy.expert.reportMetrics}
                 </button>
                 <button
                   onClick={() => setViewMode("raw")}
@@ -443,7 +387,7 @@ export function MetricsDashboard() {
                     viewMode === "raw" ? "bg-white text-atlas-600 border border-border" : "text-text-muted"
                   }`}
                 >
-                  Raw Signals
+                  {copy.expert.sourceValues}
                 </button>
               </div>
             </div>
@@ -461,7 +405,7 @@ export function MetricsDashboard() {
                       : "text-text-muted hover:text-text-primary"
                   }`}
                 >
-                  {pillar}
+                  {formatPillarLabel(pillar)}
                 </button>
               ))}
             </div>
@@ -486,6 +430,7 @@ export function MetricsDashboard() {
                     filteredMetrics.map((metric) => {
                       const confidence = extractConfidence(metric);
                       const isSelected = selectedMetricId === metric.id;
+                      const metricLabel = displayMetricLabel(metric, extractionsById);
                       return (
                         <tr
                           key={metric.id}
@@ -493,14 +438,19 @@ export function MetricsDashboard() {
                           onClick={() => setSelectedMetricId(metric.id)}
                         >
                           <td className="px-6 py-5">
-                            <div className="font-bold text-text-primary text-[14px] leading-tight">{metric.name || metric.metric_code}</div>
-                            <div className="text-[10px] text-text-muted mt-1 font-mono">{metric.metric_code}</div>
+                            <div className="font-bold text-text-primary text-[14px] leading-tight">{metricLabel.title}</div>
+                            {metricLabel.subtitle && (
+                              <div className="text-[11px] text-text-secondary mt-1">{metricLabel.subtitle}</div>
+                            )}
+                            {!metricLabel.subtitle && showTechnicalDetails && metric.name && metricLabel.title !== metric.name && (
+                              <div className="text-[10px] text-text-muted mt-1">{formatMetricCode(metric.metric_code)}</div>
+                            )}
                             <div className="text-[10px] text-text-muted mt-2">
                               {metric.source_extracted_data_ids?.length || 1} evidence source(s)
                             </div>
                           </td>
                           <td className="px-6 py-5">
-                            <div className="font-mono font-bold text-[20px] text-text-primary">
+                            <div className="font-bold text-text-primary text-[14px] leading-tight tabular-nums">
                               {Number(metric.value).toLocaleString(undefined, { maximumFractionDigits: 4 })}
                             </div>
                             <Badge variant="gray" className="mt-1.5 text-[9px] font-black tracking-widest bg-slate-100">
@@ -536,10 +486,10 @@ export function MetricsDashboard() {
                                   <span className="material-symbols-outlined text-[14px]">
                                     {approvingIds.has(metric.id) ? "progress_activity" : "check_circle"}
                                   </span>
-                                  {approvingIds.has(metric.id) ? "APPROVING…" : metric.status.toUpperCase()}
+                                  {approvingIds.has(metric.id) ? "Approving…" : formatStatusLabel(metric.status)}
                                 </button>
                               )}
-                              <span className="text-[9px] font-bold text-text-muted uppercase tracking-tighter">
+                              <span className="text-[9px] font-bold text-text-muted tracking-tighter">
                                 {sourceType(metric)}
                               </span>
                             </div>
@@ -562,14 +512,14 @@ export function MetricsDashboard() {
           <Card className="p-4 border-border shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-[14px] font-bold text-text-primary">Traceability Explorer</h3>
-                <p className="text-[12px] text-text-secondary mt-1">Click metric {"->"} extraction source {"->"} expand payload paths as deep as needed.</p>
+                <h3 className="text-[14px] font-bold text-text-primary">{copy.expert.sourceTrail}</h3>
+                <p className="text-[12px] text-text-secondary mt-1">Follow a metric back to its source document and extracted fields.</p>
               </div>
               {selectedMetric && <Badge variant="blue">{selectedMetric.source_extracted_data_ids?.length || 0} linked extraction(s)</Badge>}
             </div>
 
             {!selectedMetric ? (
-              <p className="text-[12px] text-text-muted mt-4">Select a metric row above to begin traceability drill-down.</p>
+              <p className="text-[12px] text-text-muted mt-4">Select a metric above to see its source trail.</p>
             ) : (
               <div className="grid grid-cols-[260px_1fr] gap-4 mt-4">
                 <div className="border border-border rounded-lg p-3 bg-surface-secondary space-y-2 max-h-[360px] overflow-auto">
@@ -584,8 +534,10 @@ export function MetricsDashboard() {
                         selectedExtractionId === extraction.id ? "border-atlas-500 bg-atlas-50" : "border-border bg-white"
                       }`}
                     >
-                      <p className="text-[12px] font-semibold text-text-primary truncate">{extraction.document_filename || extraction.document_id}</p>
-                      <p className="text-[10px] text-text-muted mt-1">{extraction.template_name || "Template"}</p>
+                      <p className="text-[12px] font-semibold text-text-primary truncate">
+                        {displayRecordTitle(extraction.document_filename, extraction.created_at)}
+                      </p>
+                      <p className="text-[10px] text-text-muted mt-1">{displayTemplateLabel(extraction.template_name)}</p>
                       <p className="text-[10px] text-text-muted">Confidence: {Math.round((extraction.confidence_score || 0) * 100)}%</p>
                     </button>
                   ))}
@@ -593,47 +545,35 @@ export function MetricsDashboard() {
 
                 <div className="border border-border rounded-lg p-3 bg-white">
                   {!selectedExtraction ? (
-                    <p className="text-[12px] text-text-muted">Select a linked extraction to inspect source payload.</p>
+                    <p className="text-[12px] text-text-muted">Select a linked document to see extracted fields.</p>
                   ) : (
                     <div className="space-y-3">
-                      <div className="text-[11px] text-text-secondary">
-                        <span className="font-semibold">Path:</span> Metric ({selectedMetric.metric_code})
-                        <span className="mx-1">{"->"}</span>
-                        Extraction ({selectedExtraction.id})
-                        <span className="mx-1">{"->"}</span>
-                        Payload
-                      </div>
-                      {selectedLeafPath && (
-                        <div className="flex items-center justify-between gap-3 p-2 rounded border border-atlas-200 bg-atlas-50">
-                          <div className="text-[11px] text-atlas-800">
-                            Selected field path: <span className="font-mono">{selectedLeafPath}</span>
-                          </div>
-                          <Button
-                            className="text-[11px] px-3 py-1.5 h-auto"
-                            onClick={() =>
-                              navigate(
-                                `/w/${workspaceId}/review?extractionId=${encodeURIComponent(
-                                  selectedExtraction.id
-                                )}&fieldPath=${encodeURIComponent(selectedLeafPath)}&metricId=${encodeURIComponent(
-                                  selectedMetric.id
-                                )}&metricCode=${encodeURIComponent(selectedMetric.metric_code)}`
-                              )
-                            }
-                          >
-                            Open In Review
-                          </Button>
-                        </div>
-                      )}
-                      <div className="max-h-[330px] overflow-auto p-2 rounded border border-border-light bg-surface-secondary space-y-1">
-                        <JsonNode
-                          nodeKey="payload"
-                          value={selectedExtraction.payload || {}}
-                          path="payload"
-                          expandedPaths={expandedPaths}
-                          togglePath={togglePath}
-                          onLeafClick={(path) => setSelectedLeafPath(path)}
-                          selectedLeafPath={selectedLeafPath}
-                        />
+                      <SourceTrail
+                        metric={displayMetricLabel(selectedMetric, extractionsById).title}
+                        document={selectedExtraction.document_filename}
+                      />
+                      <FieldValueTable
+                        fields={selectedExtraction.payload || {}}
+                        showTechnicalKeys={showTechnicalDetails}
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          className="text-[11px] px-3 py-1.5 h-auto"
+                          onClick={() =>
+                            navigate(
+                              `/w/${workspaceId}/review?extractionId=${encodeURIComponent(selectedExtraction.id)}&metricId=${encodeURIComponent(selectedMetric.id)}`
+                            )
+                          }
+                        >
+                          {copy.expert.openInApprovalQueue}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="text-[11px] px-3 py-1.5 h-auto"
+                          onClick={() => setTechnicalDrawerOpen(true)}
+                        >
+                          {copy.expert.viewDetails}
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -674,7 +614,7 @@ export function MetricsDashboard() {
           </Card>
 
           <Card className="p-5 bg-white border border-border shadow-sm">
-            <h3 className="text-[13px] font-bold text-text-primary mb-3">Intelligence Feed</h3>
+            <h3 className="text-[13px] font-bold text-text-primary mb-3">{copy.expert.intelligenceFeed}</h3>
             {insightLoading ? (
               <p className="text-[12px] text-text-muted">Updating recommendations...</p>
             ) : (
@@ -692,6 +632,13 @@ export function MetricsDashboard() {
           </Card>
         </div>
       </div>
+
+      <TechnicalDetailsDrawer
+        open={technicalDrawerOpen}
+        onClose={() => setTechnicalDrawerOpen(false)}
+        title={copy.expert.technicalDetails}
+        json={selectedExtraction?.payload}
+      />
     </div>
   );
 }

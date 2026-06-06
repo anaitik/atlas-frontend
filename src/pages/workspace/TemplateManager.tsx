@@ -6,7 +6,9 @@ import { apiClient } from "../../lib/api-client";
 import { Badge } from "../../components/ui/Badge";
 import { useAuthStore } from "../../store/auth";
 import { useWorkspaceStore } from "../../store/workspace";
-import { env } from "../../lib/env";
+import { humanizeKey, formatProjectedMetric } from "../../lib/display-labels";
+import { copy } from "../../lib/copy";
+import { TechnicalDetailsDrawer } from "../../components/expert";
 
 type FieldType = "string" | "float" | "int" | "date" | "bool";
 type SchemaField = { key: string; type: FieldType };
@@ -38,11 +40,11 @@ const DEFAULT_FORM = {
 const DEFAULT_SCHEMA_FIELDS: SchemaField[] = [{ key: "value", type: "float" }];
 
 const FIELD_TYPE_OPTIONS: Array<{ value: FieldType; label: string }> = [
-  { value: "string", label: "STRING" },
-  { value: "float", label: "FLOAT" },
-  { value: "int", label: "INTEGER" },
-  { value: "date", label: "DATE" },
-  { value: "bool", label: "BOOLEAN" },
+  { value: "string", label: "Text" },
+  { value: "float", label: "Number" },
+  { value: "int", label: "Whole number" },
+  { value: "date", label: "Date" },
+  { value: "bool", label: "Yes / No" },
 ];
 
 function normalizeFieldType(input: unknown): FieldType {
@@ -133,6 +135,7 @@ export function TemplateManager() {
   const [templates, setTemplates] = useState<any[]>([]);
   const [showEditor, setShowEditor] = useState(false);
   const [showGenerator, setShowGenerator] = useState(false);
+  const [debugDrawerOpen, setDebugDrawerOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [importing, setImporting] = useState(false);
@@ -431,15 +434,10 @@ export function TemplateManager() {
 
   return (
     <div className="space-y-6">
-      {env.DEMO_MODE && (
-        <div className="rounded-lg border border-atlas-200 bg-atlas-50 px-3 py-2 text-[12px] text-atlas-800">
-          <strong>Act 3 cue:</strong> Blueprints define extraction schema, units, and standards mapping before AI runs.
-        </div>
-      )}
       <header className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="atlas-page-title text-atlas-600">Template Library</h1>
-          <p className="atlas-page-subtitle">Configure AI extraction schemas and metric derivations.</p>
+          <h1 className="atlas-page-title text-atlas-600">{copy.expert.documentTypesTitle}</h1>
+          <p className="atlas-page-subtitle">{copy.expert.documentTypesSubtitle}</p>
         </div>
         <div className="flex gap-2 text-[12px]">
            <Button variant="ghost" onClick={() => setShowGenerator(v => !v)}>
@@ -600,8 +598,8 @@ export function TemplateManager() {
               </div>
 
               <div className="hidden md:grid grid-cols-[1fr,140px] gap-4 px-4 mb-2">
-                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Field Identifier (JSON Key)</span>
-                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Data Type</span>
+                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">{copy.expert.fieldName}</span>
+                <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Type</span>
               </div>
 
               <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto pr-1 pb-2">
@@ -646,13 +644,13 @@ export function TemplateManager() {
             <div className="border border-border rounded-xl bg-surface p-5 shadow-sm">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <label className="text-[13px] font-bold text-text-primary tracking-wide block">Template Pre-run</label>
+                  <label className="text-[13px] font-bold text-text-primary tracking-wide block">{copy.expert.previewExtraction}</label>
                   <p className="text-[11px] text-text-secondary mt-0.5">
-                    Validate extraction + metric candidates directly from this template editor using a sample document.
+                    Test extraction and projected metrics using a sample document.
                   </p>
                 </div>
                 <Button onClick={handleTemplatePreRun} disabled={preRunLoading || (!preRunFile && !preRunDocId)}>
-                  {preRunLoading ? "Running..." : "Run Pre-run"}
+                  {preRunLoading ? "Running..." : copy.expert.previewExtraction}
                 </Button>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -739,7 +737,7 @@ export function TemplateManager() {
                         const missing = value === null || value === undefined || value === "";
                         return (
                           <div key={field.key} className="flex items-center justify-between text-[11px]">
-                            <span className="font-mono">{field.key}</span>
+                            <span title={field.key}>{humanizeKey(field.key)}</span>
                             <span className={missing ? "text-danger" : "text-success"}>
                               {missing ? "Missing" : "Present"}
                             </span>
@@ -747,20 +745,17 @@ export function TemplateManager() {
                         );
                       })}
                     </div>
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-[10px] text-atlas-700">Debug JSON</summary>
-                      <pre className="text-[10px] max-h-[120px] overflow-auto whitespace-pre-wrap mt-1">
-                        {JSON.stringify(preRunResult.payload || {}, null, 2)}
-                      </pre>
-                    </details>
+                    <button type="button" className="text-[10px] text-atlas-700 mt-2 hover:underline" onClick={() => setDebugDrawerOpen(true)}>
+                      {copy.expert.viewDetails}
+                    </button>
                   </div>
                   <div className="p-2 bg-surface-secondary rounded border border-border">
-                    <p className="text-[11px] font-semibold text-text-secondary mb-1">Projected Metrics</p>
+                    <p className="text-[11px] font-semibold text-text-secondary mb-1">{copy.expert.projectedMetrics}</p>
                     <div className="max-h-[220px] overflow-auto space-y-1">
                       {(preRunResult.projected_metrics || []).map((metric) => (
                         <div key={`${metric.metric_key}-${metric.unit}`} className="p-1 rounded bg-white border border-border text-[11px]">
                           <div className="flex items-center justify-between">
-                            <span className="font-semibold">{metric.metric_key}</span>
+                            <span className="font-semibold">{formatProjectedMetric(metric.metric_key, (metric as { name?: string }).name)}</span>
                             <span className={metric.status === "OK" ? "text-success" : "text-warning"}>{metric.status}</span>
                           </div>
                           <div className="text-text-secondary">
@@ -798,7 +793,7 @@ export function TemplateManager() {
 
           <div className="mt-6 pt-4 border-t border-border flex justify-end gap-3">
              <Button variant="ghost" onClick={() => { setShowEditor(false); setEditingId(null); }}>Cancel</Button>
-             <Button onClick={handleCreate}>{editingId ? "Update Template" : "Save Template Library"}</Button>
+             <Button onClick={handleCreate}>{editingId ? "Save changes" : "Save document type"}</Button>
           </div>
         </Card>
       )}
@@ -812,12 +807,15 @@ export function TemplateManager() {
                 <span className="material-symbols-outlined text-atlas-600 text-[20px]">account_tree</span>
               </div>
               <Badge variant={t.workspace_id ? "amber" : "blue"}>
-                {t.workspace_id ? "WORKSPACE" : "GLOBAL"}
+                {t.workspace_id ? copy.expert.thisPeriod : copy.expert.organizationWide}
               </Badge>
             </div>
             
             <h3 className="text-[16px] font-bold text-text-primary mb-1 line-clamp-1" title={t.name}>{t.name}</h3>
-            <p className="text-[11px] font-mono text-text-muted mb-3">{t.id}</p>
+            <p className="text-[11px] text-text-muted mb-3">
+              {Object.keys(t.schema_definition || {}).length} fields ·{" "}
+              {t.workspace_id ? "This period" : "Organization-wide"}
+            </p>
             <p className="text-[12px] text-text-secondary line-clamp-2 mb-4 h-9">
               {t.target_metrics_nlp || "No metric intent provided yet."}
             </p>
@@ -826,13 +824,20 @@ export function TemplateManager() {
                <div className="flex gap-1.5 flex-wrap flex-1 max-h-6 overflow-hidden">
                  <span className="text-[10px] font-bold uppercase text-text-muted mr-1 mt-0.5">Fields:</span>
                  {Object.keys(t.schema_definition).slice(0,3).map(k => (
-                   <span key={k} className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 truncate max-w-[80px]">{k}</span>
+                   <span key={k} className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200 truncate max-w-[80px]" title={k}>{humanizeKey(k)}</span>
                  ))}
                </div>
             </div>
           </Card>
         ))}
       </div>
+
+      <TechnicalDetailsDrawer
+        open={debugDrawerOpen}
+        onClose={() => setDebugDrawerOpen(false)}
+        title={copy.expert.technicalDetails}
+        json={preRunResult?.payload}
+      />
     </div>
   );
 }

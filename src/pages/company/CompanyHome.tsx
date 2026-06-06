@@ -3,10 +3,17 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
+import { ConfirmDialog } from "../../components/ui/Dialog";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { InlineAlert } from "../../components/ui/InlineAlert";
+import { OnboardingChecklist } from "../../components/layout/OnboardingChecklist";
 import { apiClient } from "../../lib/api-client";
-import { env } from "../../lib/env";
+import { copy } from "../../lib/copy";
 import { useWorkspaceStore } from "../../store/workspace";
 import { useMutation } from "@tanstack/react-query";
+import { TraceabilityRing } from "../../components/ui/TraceabilityRing";
+import { fetchHubSnapshot } from "../../lib/workspace-hub";
+import { usePersonaMode } from "../../hooks/usePersonaMode";
 
 type WorkspaceSummary = {
   id: string;
@@ -18,14 +25,8 @@ type WorkspaceSummary = {
   updated_at: string;
 };
 
-type ExtractionSummary = {
-  status: string;
-  confidence_score?: number;
-};
-
-type ReportSummary = {
-  status: string;
-};
+type PeriodProgress = Record<string, number>;
+type PeriodTraceability = Record<string, number>;
 
 function formatDate(value?: string) {
   if (!value) return "-";
@@ -35,20 +36,24 @@ function formatDate(value?: string) {
 export function CompanyHome() {
   const { companyId } = useParams();
   const navigate = useNavigate();
-  const { activeWorkspaceId, setActiveCompany, setActiveWorkspace } = useWorkspaceStore();
+  const { setActiveCompany, setActiveWorkspace } = useWorkspaceStore();
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [companyName, setCompanyName] = useState<string>("Loading Entity...");
-  const [pendingReviewCount, setPendingReviewCount] = useState(0);
-  const [publishedReportCount, setPublishedReportCount] = useState(0);
+  const [companyName, setCompanyName] = useState<string>("Loading…");
+  const [periodProgress, setPeriodProgress] = useState<PeriodProgress>({});
+  const [periodTraceability, setPeriodTraceability] = useState<PeriodTraceability>({});
+  const [deleteTarget, setDeleteTarget] = useState<WorkspaceSummary | null>(null);
+  const { isLead } = usePersonaMode();
 
   const deleteWorkspace = useMutation({
     mutationFn: (workspaceId: string) => apiClient(`/companies/${companyId}/workspaces/${workspaceId}`, { method: "DELETE" }),
     onSuccess: (_, deletedId) => {
       setWorkspaces((prev) => prev.filter((w) => w.id !== deletedId));
+      setDeleteTarget(null);
     },
     onError: (err: any) => {
-      setErrorMessage(err.message || "Failed to delete workspace.");
+      setErrorMessage(err.message || "Failed to delete reporting period.");
+      setDeleteTarget(null);
     },
   });
 
@@ -57,52 +62,43 @@ export function CompanyHome() {
 
     apiClient(`/companies/${companyId}`)
       .then((data: any) => {
-        setCompanyName(data.name || "Entity Overview");
+        setCompanyName(data.name || "Your organization");
         setActiveCompany(companyId, data.name);
       })
-      .catch(() => setCompanyName("Entity Overview"));
+      .catch(() => setCompanyName("Your organization"));
 
     apiClient<WorkspaceSummary[]>(`/companies/${companyId}/workspaces`)
       .then((data) => setWorkspaces(data || []))
-      .catch((err) => setErrorMessage(err.message || "Failed to load workspaces."));
+      .catch((err) => setErrorMessage(err.message || "Failed to load reporting periods."));
   }, [companyId, setActiveCompany]);
 
   useEffect(() => {
     if (!companyId || workspaces.length === 0) {
-      setPendingReviewCount(0);
-      setPublishedReportCount(0);
+      setPeriodProgress({});
+      setPeriodTraceability({});
       return;
     }
 
-    const loadEntityActivity = async () => {
-      try {
-        const extractionPromises = workspaces.map((workspace) => apiClient<any>(`/extraction?workspace_id=${workspace.id}`));
-        const reportPromises = workspaces.map((workspace) =>
-          apiClient<ReportSummary[]>(`/reports?company_id=${companyId}&workspace_id=${workspace.id}`)
-        );
-
-        const [extractionResults, reportResults] = await Promise.all([
-          Promise.all(extractionPromises),
-          Promise.all(reportPromises),
-        ]);
-
-        const extractions = extractionResults.flatMap((res) => (res?.items || res || []) as ExtractionSummary[]);
-        const reports = reportResults.flatMap((res) => res || []);
-
-        const pending = extractions.filter(
-          (item) => item.status === "needs_review" || item.status === "pending_review" || (item.confidence_score ?? 1) < 0.85
-        ).length;
-        const published = reports.filter((report) => report.status === "published").length;
-
-        setPendingReviewCount(pending);
-        setPublishedReportCount(published);
-      } catch {
-        setPendingReviewCount(0);
-        setPublishedReportCount(0);
-      }
+    const loadProgress = async () => {
+      const progressEntries: PeriodProgress = {};
+      const traceEntries: PeriodTraceability = {};
+      await Promise.all(
+        workspaces.map(async (ws) => {
+          try {
+            const hub = await fetchHubSnapshot(ws.id, companyId);
+            progressEntries[ws.id] = hub.readinessPercent;
+            traceEntries[ws.id] = hub.traceabilityScore;
+          } catch {
+            progressEntries[ws.id] = 0;
+            traceEntries[ws.id] = 0;
+          }
+        })
+      );
+      setPeriodProgress(progressEntries);
+      setPeriodTraceability(traceEntries);
     };
 
-    void loadEntityActivity();
+    void loadProgress();
   }, [companyId, workspaces]);
 
   if (companyId === "setup") {
@@ -111,140 +107,143 @@ export function CompanyHome() {
         <div className="w-16 h-16 bg-warning-bg rounded-full flex items-center justify-center mb-5 border border-warning-border">
           <span className="material-symbols-outlined text-[32px] text-warning">hourglass_empty</span>
         </div>
-        <h2 className="text-[20px] font-bold text-text-primary mb-2">Account Provisioning</h2>
-        <p className="text-[13px] text-text-secondary leading-relaxed">
-          Your account needs to be assigned to an entity by the system administrator before you can access the platform.
-        </p>
+        <h2 className="text-[20px] font-bold text-text-primary mb-2">{copy.org.provisioningTitle}</h2>
+        <p className="text-[13px] text-text-secondary leading-relaxed">{copy.org.provisioningBody}</p>
       </div>
     );
   }
 
-  const activeCount = workspaces.filter((w) => w.status === "active").length || (workspaces.length > 0 ? 1 : 0);
+  const hasPeriod = workspaces.length > 0;
+  const anyUploads = Object.values(periodProgress).some((p) => p > 10);
+
+  const onboardingItems = [
+    {
+      id: "period",
+      label: "Create a reporting period",
+      done: hasPeriod,
+      actionLabel: "Create",
+      onAction: () => navigate(`/c/${companyId}/workspaces/new`),
+    },
+    {
+      id: "upload",
+      label: "Upload your first source document",
+      done: anyUploads,
+      actionLabel: hasPeriod ? "Upload" : undefined,
+      onAction: hasPeriod ? () => navigate(`/w/${workspaces[0].id}/documents`) : undefined,
+    },
+    {
+      id: "report",
+      label: "Open your report draft",
+      done: Object.values(periodProgress).some((p) => p >= 50),
+      actionLabel: hasPeriod ? "Open report" : undefined,
+      onAction: hasPeriod ? () => navigate(`/w/${workspaces[0].id}/report`) : undefined,
+    },
+  ];
+
+  const avgTraceability =
+    workspaces.length > 0
+      ? Math.round(Object.values(periodTraceability).reduce((a, b) => a + b, 0) / workspaces.length)
+      : 0;
 
   const heroStats = [
-    { label: "Total Workspaces", value: workspaces.length, icon: "source_environment" },
-    { label: "Active Now", value: activeCount, icon: "bolt" },
-    { label: "Pending Review", value: pendingReviewCount, icon: "pending_actions" },
-    { label: "Published Reports", value: publishedReportCount, icon: "workspace_premium" },
+    { label: "Reporting periods", value: workspaces.length, icon: "calendar_month" },
+    { label: "Avg. readiness", value: workspaces.length ? `${Math.round(Object.values(periodProgress).reduce((a, b) => a + b, 0) / workspaces.length)}%` : "—", icon: "speed" },
+    { label: "In progress", value: workspaces.filter((w) => w.status === "active").length, icon: "bolt" },
   ];
 
   return (
     <div className="space-y-6 animate-atlas-in">
-      {env.DEMO_MODE && (
-        <div className="rounded-lg border border-atlas-200 bg-atlas-50 px-3 py-2 text-[12px] text-atlas-800">
-          <strong>Act 3 cue:</strong> Define reporting boundary (workspace) before evidence collection.
-        </div>
-      )}
       <div className="relative overflow-hidden bg-atlas-900 rounded-2xl p-8 text-white">
         <div className="absolute inset-0 grid-pattern opacity-30" />
-        <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-atlas-500/10 blur-3xl transform translate-x-1/3 -translate-y-1/3" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 rounded-full bg-atlas-400/10 blur-3xl transform -translate-x-1/3 translate-y-1/3" />
-
-        <div className="relative z-10 flex items-start justify-between">
+        <div className="relative z-10 flex items-start justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-atlas-500/20 border border-atlas-400/20 flex items-center justify-center">
-                <span className="material-symbols-outlined text-atlas-400 text-[22px]">domain</span>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-atlas-400">Entity Dashboard</p>
-                <h1 className="text-[24px] font-extrabold tracking-tight leading-tight">{companyName}</h1>
-              </div>
-            </div>
-            <p className="text-[13px] text-atlas-300/70 mt-2 max-w-lg leading-relaxed">
-              Manage your reporting boundaries, track ESG data collection progress, and generate verified sustainability reports.
+            <p className="text-[11px] font-semibold text-atlas-400 mb-1">{copy.org.dashboardEyebrow}</p>
+            <h1 className="text-[24px] font-extrabold tracking-tight leading-tight">{companyName}</h1>
+            <p className="text-[13px] text-atlas-300/80 mt-2 max-w-lg leading-relaxed">
+              Know where your sustainability report stands—and what to do next—before the deadline.
             </p>
           </div>
-          <Button onClick={() => navigate(`/c/${companyId}/workspaces/new`)} className="bg-atlas-500 hover:bg-atlas-400 text-white shadow-lg shadow-atlas-900/50">
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            New Workspace
-          </Button>
+          <div className="flex items-center gap-4 shrink-0">
+            {workspaces.length > 0 && (
+              <TraceabilityRing value={avgTraceability} label={copy.period.traceability} size={88} />
+            )}
+            <Button onClick={() => navigate(`/c/${companyId}/workspaces/new`)} className="bg-atlas-500 hover:bg-atlas-400 text-white shadow-lg">
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              {copy.org.newPeriod}
+            </Button>
+          </div>
         </div>
-
-        <div className="relative z-10 grid grid-cols-4 gap-4 mt-6">
+        <div className="relative z-10 grid grid-cols-3 gap-4 mt-6">
           {heroStats.map((stat) => (
             <div key={stat.label} className="glass-dark rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
                 <span className="material-symbols-outlined text-atlas-400/70 text-[16px]">{stat.icon}</span>
-                <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-atlas-400/60">{stat.label}</span>
+                <span className="text-[10px] font-semibold text-atlas-400/70">{stat.label}</span>
               </div>
-              <span className="text-[24px] font-bold text-white animate-counter-pop">{stat.value}</span>
+              <span className="text-[24px] font-bold text-white">{stat.value}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {errorMessage && (
-        <div className="p-4 rounded-lg bg-danger-bg border border-danger-border text-danger text-[13px] flex items-center gap-2 animate-slide-up">
-          <span className="material-symbols-outlined text-[18px]">error</span>
-          {errorMessage}
-        </div>
-      )}
+      {companyId && <OnboardingChecklist companyId={companyId} items={onboardingItems} />}
 
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-[16px] font-bold text-text-primary">Reporting Periods</h2>
-      </div>
+      {errorMessage && <InlineAlert variant="danger">{errorMessage}</InlineAlert>}
+
+      <h2 className="text-[16px] font-bold text-text-primary">{copy.org.reportingPeriods}</h2>
 
       {workspaces.length === 0 ? (
-        <Card className="py-16 text-center shadow-none border-dashed bg-surface-secondary/50">
-          <span className="material-symbols-outlined text-[48px] text-text-muted mb-4 block">folder_open</span>
-          <h3 className="text-[16px] font-semibold text-text-primary mb-1">No workspaces found</h3>
-          <p className="text-[13px] text-text-secondary mb-6">Initialize a reporting boundary to begin the data pipeline.</p>
-          <Button onClick={() => navigate(`/c/${companyId}/workspaces/new`)}>Initialize Workspace</Button>
+        <Card className="shadow-none border-dashed bg-surface-secondary/50">
+          <EmptyState
+            icon="folder_open"
+            title={copy.org.noPeriodsTitle}
+            description={copy.org.noPeriodsBody}
+            actionLabel={copy.org.createPeriod}
+            onAction={() => navigate(`/c/${companyId}/workspaces/new`)}
+          />
         </Card>
       ) : (
-        <div className="grid grid-cols-3 gap-5 stagger-fade">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 stagger-fade">
           {workspaces.map((workspace) => {
-            const isActiveContext = activeWorkspaceId === workspace.id;
-
+            const progress = periodProgress[workspace.id] ?? 0;
             return (
-              <Card key={workspace.id} variant="interactive" className={`flex flex-col h-full border-t-4 ${isActiveContext ? "border-t-atlas-400 ring-1 ring-atlas-400/20" : "border-t-atlas-500"}`}>
-                <div className="flex items-start justify-between mb-4">
+              <Card key={workspace.id} variant="interactive" className="flex flex-col h-full border-t-4 border-t-atlas-500">
+                <div className="flex items-start justify-between mb-3">
                   <div>
                     <h3 className="text-[16px] font-bold text-text-primary mb-1">{workspace.name}</h3>
-                    <Badge variant={workspace.status === "active" ? "green" : "gray"}>{workspace.status.toUpperCase()}</Badge>
+                    <Badge variant={workspace.status === "active" ? "green" : "gray"}>
+                      {workspace.status === "active" ? "Active" : workspace.status}
+                    </Badge>
                   </div>
-                  {isActiveContext && (
-                    <div className="flex items-center gap-1 text-atlas-500 animate-blockchain-confirm">
-                      <span className="material-symbols-outlined text-[20px]">check_circle</span>
-                    </div>
-                  )}
+                  <div className="text-right">
+                    <span className="text-[13px] font-bold text-atlas-600 block">{progress}%</span>
+                    {isLead && periodTraceability[workspace.id] != null && (
+                      <span className="text-[10px] text-text-muted">{periodTraceability[workspace.id]}% traceable</span>
+                    )}
+                  </div>
                 </div>
-
-                <p className="text-[12px] text-text-secondary mb-3 flex-1">{workspace.description || "No description provided."}</p>
-
-                <div className="text-[10px] text-text-muted mb-4 font-mono">Created {formatDate(workspace.created_at)}</div>
-
+                <p className="text-[12px] text-text-secondary mb-2 flex-1">{workspace.description || "No description yet."}</p>
+                <div className="h-1.5 rounded-full bg-surface-secondary mb-3 overflow-hidden">
+                  <div className="h-full bg-atlas-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                </div>
+                <p className="text-[11px] text-text-muted mb-4">Created {formatDate(workspace.created_at)}</p>
                 <div className="flex gap-2 pt-4 border-t border-border mt-auto">
                   <Button
                     className="flex-1"
                     onClick={() => {
                       if (companyId) setActiveCompany(companyId, companyName);
                       setActiveWorkspace(workspace.id, workspace.name);
-                      navigate(`/w/${workspace.id}/extraction`);
+                      navigate(`/w/${workspace.id}`);
                     }}
                   >
-                    Enter Workspace
+                    {copy.org.continue}
                   </Button>
                   <Button
                     variant="ghost"
-                    onClick={() => {
-                      if (companyId) navigate(`/c/${companyId}/settings`);
-                    }}
-                    className="px-3 hover:text-atlas-600 hover:bg-atlas-50"
-                    title="Entity settings"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">settings</span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      if (confirm("Are you sure you want to delete this workspace completely? All pipeline data will be lost.")) {
-                        deleteWorkspace.mutate(workspace.id);
-                      }
-                    }}
+                    onClick={() => setDeleteTarget(workspace)}
                     className="px-3 !text-red-500 hover:bg-red-50"
-                    title="Delete Workspace"
+                    title="Delete reporting period"
+                    aria-label="Delete reporting period"
                   >
                     <span className="material-symbols-outlined text-[18px]">delete</span>
                   </Button>
@@ -254,6 +253,16 @@ export function CompanyHome() {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete reporting period?"
+        message="This will permanently remove all uploads, reviews, and report data for this period."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => deleteTarget && deleteWorkspace.mutate(deleteTarget.id)}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
