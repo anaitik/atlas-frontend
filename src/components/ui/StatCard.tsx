@@ -20,13 +20,13 @@ export function StatCard({ label, value, subtitle, icon, variant = "default", de
   const styles = variantStyles[variant];
 
   return (
-    <div className={`bg-surface border border-border rounded-xl p-5 ${className}`}>
+    <div className={`bg-surface border border-border-light rounded-2xl shadow-card p-5 transition-all duration-300 hover:shadow-card-hover hover:-translate-y-0.5 ${className}`}>
       <div className="flex items-start justify-between">
         <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
           {label}
         </div>
         {icon && (
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${styles.icon}`}>
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${styles.icon}`}>
             <span className="material-symbols-outlined text-[18px]">{icon}</span>
           </div>
         )}

@@ -20,7 +20,14 @@ export function AppShell() {
       {/* ── Main content area ───────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar />
-        <main className="flex-1 overflow-y-auto">
+        <main
+          className="flex-1 overflow-y-auto"
+          style={{
+            backgroundImage:
+              "radial-gradient(ellipse 70% 55% at 100% 0%, rgba(22,163,74,0.055) 0%, transparent 60%)," +
+              "radial-gradient(ellipse 55% 45% at 0% 100%, rgba(22,163,74,0.04) 0%, transparent 55%)",
+          }}
+        >
           <div className="max-w-[1200px] mx-auto px-8 py-6 animate-atlas-in">
             <Outlet />
           </div>

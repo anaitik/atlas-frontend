@@ -3,7 +3,7 @@
  * These are handwritten helpers that downstream pages use.
  */
 
-export type UserRole = "system_admin" | "company_owner" | "sustainability_manager" | "data_reviewer" | "report_viewer";
+export type UserRole = "system_admin" | "system_audit_officer" | "company_owner" | "sustainability_manager" | "data_reviewer" | "report_viewer";
 export type UserStatus = "pending" | "active" | "suspended";
 export type CompanyStatus = "active" | "suspended";
 export type WorkspaceStatus = "active" | "archived";

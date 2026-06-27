@@ -28,7 +28,10 @@ export function TopBar() {
   const isAdmin = user?.role === "system_admin";
 
   return (
-    <header className="h-14 bg-surface border-b border-border flex items-center justify-between px-6 shrink-0">
+    <header
+      className="h-14 border-b border-border-light flex items-center justify-between px-6 shrink-0 sticky top-0 z-20"
+      style={{ background: "rgba(255,255,255,0.78)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
+    >
       <div className="flex items-center gap-2 text-[13px] min-w-0">
         {isAdmin ? (
           <span className="font-semibold text-text-primary">Atlas Admin</span>
@@ -53,7 +56,7 @@ export function TopBar() {
         {!isAdmin && activeWorkspaceId && (
           <button
             type="button"
-            className="ml-2 px-4 py-1.5 bg-atlas-900 hover:bg-atlas-800 text-white text-[12px] font-semibold rounded-lg transition-colors shadow-sm"
+            className="ml-2 px-4 py-1.5 bg-gradient-to-b from-atlas-500 to-atlas-600 hover:to-atlas-700 text-white text-[12px] font-semibold rounded-xl transition-all shadow-[0_4px_12px_rgba(22,101,52,0.25)] active:scale-[0.97]"
             onClick={() => navigate(`/w/${activeWorkspaceId}/report`)}
           >
             {copy.period.openReport}
@@ -62,10 +65,10 @@ export function TopBar() {
 
         <button
           type="button"
-          className="p-2 rounded-lg hover:bg-surface-secondary transition-colors"
+          className="p-1 rounded-full hover:bg-surface-secondary transition-colors"
           title={user?.full_name || "Current user"}
         >
-          <div className="w-7 h-7 rounded-full bg-atlas-600 flex items-center justify-center text-[11px] font-bold text-white">
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-atlas-400 to-atlas-600 flex items-center justify-center text-[11px] font-bold text-white shadow-[0_2px_8px_rgba(34,197,94,0.3)]">
             {user?.full_name?.charAt(0) ?? "U"}
           </div>
         </button>

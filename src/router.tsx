@@ -9,8 +9,10 @@ import { AccessDeniedPage } from "./pages/auth/AccessDeniedPage";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
 import { CompanyManagement } from "./pages/admin/CompanyManagement";
 import { UserManagement } from "./pages/admin/UserManagement";
+import { ConfigurationPage } from "./pages/admin/ConfigurationPage";
 import { CompanyHome } from "./pages/company/CompanyHome";
 import { CompanySettings } from "./pages/company/CompanySettings";
+import { CompanyProfile } from "./pages/company/CompanyProfile";
 import { WorkspaceSetup } from "./pages/workspace/WorkspaceSetup";
 import { ExtractionDashboard } from "./pages/workspace/ExtractionDashboard";
 import { ExtractionReview } from "./pages/workspace/ExtractionReview";
@@ -21,6 +23,15 @@ import { ReportStudio } from "./pages/workspace/ReportStudio";
 import { WorkspaceHub } from "./pages/workspace/WorkspaceHub";
 import { DocumentsPage } from "./pages/workspace/DocumentsPage";
 import { EvidencePage } from "./pages/workspace/EvidencePage";
+import { DataCollectPage } from "./pages/workspace/DataCollectPage";
+import { BankAccessPage } from "./pages/workspace/BankAccessPage";
+import { BankVerificationPage } from "./pages/bank/BankVerificationPage";
+import { BankPortfolioPage } from "./pages/bank/BankPortfolioPage";
+import { EsgGapPage } from "./pages/workspace/EsgGapPage";
+import { VsmeReportPage } from "./pages/workspace/VsmeReportPage";
+import { WorkspaceProfilePage } from "./pages/workspace/WorkspaceProfilePage";
+import { BlueprintReviewQueue } from "./pages/audit/BlueprintReviewQueue";
+import { BlueprintReview } from "./pages/audit/BlueprintReview";
 
 const ALL_ROLES = ["system_admin", "company_owner", "sustainability_manager", "data_reviewer", "report_viewer"];
 const ANALYST_AND_UP = ["system_admin", "company_owner", "sustainability_manager", "data_reviewer"];
@@ -37,6 +48,23 @@ export const router = createBrowserRouter([
   { path: "/register", element: <RegisterPage /> },
   { path: "/pending", element: <PendingPage /> },
   { path: "/access-denied", element: <AccessDeniedPage /> },
+  { path: "/verify/:token", element: <BankVerificationPage /> },
+  { path: "/bank/portfolio", element: <BankPortfolioPage /> },
+  {
+    // Standalone report view — authenticated but no AppShell chrome so print is clean.
+    element: <ProtectedRoute allowedRoles={ALL_ROLES} />,
+    children: [
+      { path: "/w/:workspaceId/vsme-report", element: <VsmeReportPage /> },
+    ],
+  },
+  {
+    // Blueprint review — accessible to audit officer (isolated shell) and system admin.
+    element: <ProtectedRoute allowedRoles={["system_audit_officer", "system_admin"]} />,
+    children: [
+      { path: "/audit", element: <BlueprintReviewQueue /> },
+      { path: "/audit/blueprints/:blueprintId", element: <BlueprintReview /> },
+    ],
+  },
   {
     element: <AppShell />,
     errorElement: <RouteErrorBoundary />,
@@ -47,13 +75,16 @@ export const router = createBrowserRouter([
           { path: "/admin", element: <AdminDashboard /> },
           { path: "/admin/companies", element: <CompanyManagement /> },
           { path: "/admin/users", element: <UserManagement /> },
+          { path: "/admin/config", element: <ConfigurationPage /> },
         ]
       },
       {
         element: <ProtectedRoute allowedRoles={OWNER_AND_UP} />,
         children: [
           { path: "/c/:companyId/settings", element: <CompanySettings /> },
+          { path: "/c/:companyId/profile", element: <CompanyProfile /> },
           { path: "/c/:companyId/workspaces/new", element: <WorkspaceSetup /> },
+          { path: "/c/:companyId/workspaces/:workspaceId/profile", element: <WorkspaceProfilePage /> },
           { path: "/w/:workspaceId/members", element: <WorkspaceMembers /> },
         ]
       },
@@ -80,6 +111,9 @@ export const router = createBrowserRouter([
           { path: "/w/:workspaceId/metrics", element: <MetricsDashboard /> },
           { path: "/w/:workspaceId/report", element: <ReportStudio /> },
           { path: "/w/:workspaceId/story", element: <StoryToEvidenceRedirect /> },
+          { path: "/w/:workspaceId/collect", element: <DataCollectPage /> },
+          { path: "/w/:workspaceId/gap-analysis", element: <EsgGapPage /> },
+          { path: "/w/:workspaceId/bank-access", element: <BankAccessPage /> },
         ]
       },
       { path: "/", element: <Navigate to="/login" replace /> },

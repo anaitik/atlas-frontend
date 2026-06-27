@@ -15,6 +15,11 @@ export function RegisterPage() {
     e.preventDefault();
     setError("");
 
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
     if (password !== confirm) {
       setError("Passwords do not match.");
       return;
@@ -110,12 +115,14 @@ export function RegisterPage() {
             <input
               type="password"
               required
+              minLength={8}
               className="atlas-input"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               id="register-password"
             />
+            <p className="text-[11px] text-text-muted mt-1">Minimum 8 characters.</p>
           </div>
 
           <div>

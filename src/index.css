@@ -53,6 +53,16 @@
   /* ── Layout v2 (period hub / report) ─────────────── */
   --layout-period-hero-radius: 1rem;
   --layout-sticky-bar-shadow: 0 -4px 24px rgba(15, 29, 21, 0.08);
+
+  /* ── Elevation scale (v3 refresh) ────────────────── */
+  --shadow-card: 0 1px 2px rgba(15, 29, 21, 0.04), 0 4px 14px rgba(15, 29, 21, 0.05);
+  --shadow-card-hover: 0 6px 14px rgba(15, 29, 21, 0.07), 0 18px 36px rgba(15, 29, 21, 0.10);
+  --shadow-pop: 0 10px 40px rgba(15, 29, 21, 0.14);
+  --shadow-brand: 0 6px 20px rgba(22, 101, 52, 0.28);
+
+  /* ── Radii (v3 refresh) ──────────────────────────── */
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.125rem;
 }
 
 /* ── Base Reset ─────────────────────────────────── */
@@ -65,9 +75,14 @@
 
   body {
     background-color: var(--color-page-bg);
+    background-image:
+      radial-gradient(ellipse 70% 55% at 100% 0%, rgba(22, 163, 74, 0.06) 0%, transparent 55%),
+      radial-gradient(ellipse 55% 45% at 0% 100%, rgba(22, 163, 74, 0.04) 0%, transparent 50%);
+    background-attachment: fixed;
     color: var(--color-text-primary);
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.6;
+    letter-spacing: -0.008em;
   }
 
   /* Scrollbar styling for the app */
@@ -98,14 +113,18 @@
 @layer utilities {
   /* Cards */
   .atlas-card {
-    @apply bg-surface border border-border rounded-xl shadow-sm;
+    @apply bg-surface border border-border-light rounded-2xl;
+    box-shadow: var(--shadow-card);
   }
   .atlas-card-hover {
-    @apply hover:shadow-md hover:border-atlas-400/30 transition-all duration-200;
+    @apply transition-all duration-300 hover:border-atlas-400/40 hover:-translate-y-0.5;
   }
+  .atlas-card-hover:hover { box-shadow: var(--shadow-card-hover); }
   .atlas-card-interactive {
-    @apply bg-surface border border-border rounded-xl shadow-sm hover:shadow-md hover:border-atlas-400/30 transition-all duration-200 cursor-pointer;
+    @apply bg-surface border border-border-light rounded-2xl transition-all duration-300 hover:border-atlas-400/40 hover:-translate-y-0.5 cursor-pointer;
+    box-shadow: var(--shadow-card);
   }
+  .atlas-card-interactive:hover { box-shadow: var(--shadow-card-hover); }
   .inner-shadow {
     box-shadow: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
   }
@@ -166,6 +185,11 @@
   }
   .atlas-progress-fill {
     @apply h-full rounded-full bg-atlas-500 transition-all duration-500;
+  }
+
+  /* Form labels */
+  .atlas-label {
+    @apply block text-[12px] font-semibold text-text-secondary mb-1.5;
   }
 
   /* Inputs */

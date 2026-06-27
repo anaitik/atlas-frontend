@@ -23,7 +23,7 @@ function buildBaseUrl() {
   return apiBaseUrl ? `${apiBaseUrl}${apiV1}` : apiV1;
 }
 
-const BASE_URL = buildBaseUrl();
+export const BASE_URL = buildBaseUrl();
 
 export class ApiError extends Error {
   status: number;

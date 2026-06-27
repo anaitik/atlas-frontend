@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./Button";
 
 export function Dialog({
@@ -45,6 +45,62 @@ export function Dialog({
         {footer && <div className="flex justify-end gap-2 border-t border-border bg-surface-secondary px-5 py-3">{footer}</div>}
       </div>
     </div>
+  );
+}
+
+export function PromptDialog({
+  open,
+  title,
+  message,
+  placeholder,
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
+  required = true,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  title: string;
+  message?: string;
+  placeholder?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  required?: boolean;
+  onConfirm: (value: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState("");
+
+  useEffect(() => {
+    if (open) setValue("");
+  }, [open]);
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onCancel}
+      title={title}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onCancel}>{cancelLabel}</Button>
+          <Button disabled={required && !value.trim()} onClick={() => { if (value.trim() || !required) onConfirm(value.trim()); }}>
+            {confirmLabel}
+          </Button>
+        </>
+      }
+    >
+      {message && <p className="mb-3">{message}</p>}
+      <textarea
+        autoFocus
+        rows={3}
+        className="w-full bg-white border border-border rounded-lg px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-atlas-500/30 focus:border-atlas-500 resize-none"
+        placeholder={placeholder || "Enter your notes…"}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter" && e.ctrlKey && (value.trim() || !required)) onConfirm(value.trim()); }}
+      />
+      {required && <p className="text-[11px] text-text-muted mt-1">Required to proceed.</p>}
+    </Dialog>
   );
 }
 

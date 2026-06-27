@@ -4,6 +4,7 @@ import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { Badge, StatusBadge } from "../../components/ui/Badge";
 import { ConfidenceBar } from "../../components/ui/ConfidenceBar";
+import { ConfirmDialog, PromptDialog } from "../../components/ui/Dialog";
 import { apiClient } from "../../lib/api-client";
 import { copy } from "../../lib/copy";
 import {
@@ -147,6 +148,9 @@ export function ExtractionReview() {
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [overrideDialog, setOverrideDialog] = useState<{ record: ExtractionRecord } | null>(null);
+  const [rejectDialog, setRejectDialog] = useState<{ record: ExtractionRecord } | null>(null);
+  const [bulkApproveDialog, setBulkApproveDialog] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!workspaceId) return;
@@ -256,22 +260,16 @@ export function ExtractionReview() {
       selectedRecord?.id === record.id &&
       JSON.stringify(localPayload || {}) !== JSON.stringify(record.payload || {});
 
-    let notes = "Approved from approval queue";
     if (recordHasEdits) {
-      const rationale = window.prompt(copy.review.overrideRequired);
-      if (!rationale?.trim()) return;
-      notes = `Override: ${rationale.trim()}`;
+      setOverrideDialog({ record });
+      return;
     }
 
     setApproving(true);
     try {
       await apiClient(`/extraction/${record.id}/review`, {
         method: "POST",
-        body: JSON.stringify({
-          action: "approve",
-          notes,
-          overrides: isBulk ? null : recordHasEdits ? localPayload : null,
-        }),
+        body: JSON.stringify({ action: "approve", notes: "Approved from review queue", overrides: null }),
       });
       setStatusMessage(`Approved ${displayDocumentLabel(record.document_filename)}.`);
       await loadData();
@@ -280,16 +278,36 @@ export function ExtractionReview() {
     }
   };
 
-  const handleBulkApprove = async () => {
+  const handleApproveWithOverride = async (record: ExtractionRecord, notes: string) => {
+    setOverrideDialog(null);
+    setApproving(true);
+    try {
+      await apiClient(`/extraction/${record.id}/review`, {
+        method: "POST",
+        body: JSON.stringify({ action: "approve", notes: `Override: ${notes}`, overrides: localPayload }),
+      });
+      setStatusMessage(`Approved ${displayDocumentLabel(record.document_filename)}.`);
+      await loadData();
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const handleBulkApprove = () => {
     const pending = records.filter((item) => item.status !== "approved");
     if (pending.length === 0) return;
-    if (!window.confirm(`Approve ${pending.length} document${pending.length > 1 ? "s" : ""}?`)) return;
+    setBulkApproveDialog(true);
+  };
+
+  const handleBulkApproveConfirm = async () => {
+    setBulkApproveDialog(false);
+    const pending = records.filter((item) => item.status !== "approved");
     setApproving(true);
     try {
       for (const record of pending) {
         await apiClient(`/extraction/${record.id}/review`, {
           method: "POST",
-          body: JSON.stringify({ action: "approve", notes: "Bulk approve from approval queue", overrides: null }),
+          body: JSON.stringify({ action: "approve", notes: "Bulk approve from review queue", overrides: null }),
         });
       }
       setStatusMessage("All documents approved.");
@@ -300,12 +318,15 @@ export function ExtractionReview() {
     }
   };
 
-  const handleReject = async (record: ExtractionRecord) => {
-    const rationale = window.prompt(copy.review.rejectRationale);
-    if (!rationale?.trim()) return;
+  const handleReject = (record: ExtractionRecord) => {
+    setRejectDialog({ record });
+  };
+
+  const handleRejectConfirm = async (record: ExtractionRecord, rationale: string) => {
+    setRejectDialog(null);
     await apiClient(`/extraction/${record.id}/review`, {
       method: "POST",
-      body: JSON.stringify({ action: "reject", notes: rationale.trim() }),
+      body: JSON.stringify({ action: "reject", notes: rationale }),
     });
     setStatusMessage(`Rejected ${displayDocumentLabel(record.document_filename)}.`);
     await loadData();
@@ -708,6 +729,39 @@ export function ExtractionReview() {
         onClose={() => setTechnicalDrawerOpen(false)}
         title={copy.expert.technicalDetails}
         json={technicalDrawerPayload}
+      />
+
+      {/* Override rationale dialog */}
+      <PromptDialog
+        open={!!overrideDialog}
+        title="Reason for override"
+        message="You've edited values in this extraction. Provide a brief reason for the changes."
+        placeholder="e.g. Corrected unit from kWh to MWh based on original invoice…"
+        confirmLabel="Approve with override"
+        onConfirm={(notes) => overrideDialog && handleApproveWithOverride(overrideDialog.record, notes)}
+        onCancel={() => setOverrideDialog(null)}
+      />
+
+      {/* Reject rationale dialog */}
+      <PromptDialog
+        open={!!rejectDialog}
+        title="Reason for rejection"
+        message="Describe why this extraction is being rejected so the team can re-upload or fix the issue."
+        placeholder="e.g. Wrong document type, numbers don't match original invoice…"
+        confirmLabel="Reject extraction"
+        onConfirm={(notes) => rejectDialog && handleRejectConfirm(rejectDialog.record, notes)}
+        onCancel={() => setRejectDialog(null)}
+      />
+
+      {/* Bulk approve confirmation */}
+      <ConfirmDialog
+        open={bulkApproveDialog}
+        title="Approve all pending?"
+        message={`This will approve all ${records.filter((r) => r.status !== "approved").length} pending documents at once. You can still review individual metrics afterwards.`}
+        confirmLabel="Approve all"
+        variant="primary"
+        onConfirm={handleBulkApproveConfirm}
+        onCancel={() => setBulkApproveDialog(false)}
       />
     </div>
   );

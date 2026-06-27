@@ -24,6 +24,190 @@ import {
   metricSourceTypeRaw,
 } from "../../lib/display-labels";
 
+// ─── Manual Entry Panel ────────────────────────────────────────────────────────
+
+type MetricDefinition = { key: string; description: string; unit: string; pillar: string };
+
+function ManualEntryPanel({
+  companyId,
+  workspaceId,
+  definitions,
+  onSaved,
+  onClose,
+}: {
+  companyId: string;
+  workspaceId: string;
+  definitions: MetricDefinition[];
+  onSaved: (metric: MetricRecord) => void;
+  onClose: () => void;
+}) {
+  const [selectedCode, setSelectedCode] = useState(definitions[0]?.key || "");
+  const [customCode, setCustomCode] = useState("");
+  const [customName, setCustomName] = useState("");
+  const [value, setValue] = useState("");
+  const [unit, setUnit] = useState("");
+  const [pillar, setPillar] = useState("environmental");
+  const [evidenceNote, setEvidenceNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isCustom = selectedCode === "__custom__";
+  const selectedDef = definitions.find((d) => d.key === selectedCode);
+
+  useEffect(() => {
+    if (selectedDef) {
+      setUnit(selectedDef.unit);
+      setPillar(selectedDef.pillar);
+    }
+  }, [selectedCode, selectedDef]);
+
+  const metricCode = isCustom ? customCode : selectedCode;
+  const metricName = isCustom ? customName : (selectedDef?.description || selectedCode);
+  const canSave = metricCode && value && unit;
+
+  const handleSave = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await apiClient<MetricRecord>("/metrics/manual-entry", {
+        method: "POST",
+        body: JSON.stringify({
+          company_id: companyId,
+          workspace_id: workspaceId,
+          metric_code: metricCode,
+          name: metricName,
+          value: parseFloat(value),
+          unit,
+          pillar,
+          evidence_note: evidenceNote || undefined,
+        }),
+      });
+      onSaved(saved);
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || "Failed to save metric.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-atlas-50 border border-atlas-200 rounded-xl p-5 space-y-4 animate-atlas-in">
+      <div className="flex items-center justify-between">
+        <h3 className="text-[14px] font-bold text-atlas-700 flex items-center gap-2">
+          <span className="material-symbols-outlined text-[18px]">edit_note</span>
+          Enter value manually
+        </h3>
+        <button onClick={onClose} className="text-text-muted hover:text-text-primary">
+          <span className="material-symbols-outlined text-[20px]">close</span>
+        </button>
+      </div>
+
+      {error && <div className="text-[12px] text-danger font-medium">{error}</div>}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="atlas-label">Metric</label>
+          <select
+            className="atlas-input"
+            value={selectedCode}
+            onChange={(e) => setSelectedCode(e.target.value)}
+          >
+            {definitions.map((d) => (
+              <option key={d.key} value={d.key}>
+                {d.description} ({d.unit})
+              </option>
+            ))}
+            <option value="__custom__">— Custom metric…</option>
+          </select>
+        </div>
+
+        {isCustom && (
+          <>
+            <div>
+              <label className="atlas-label">Metric code</label>
+              <input
+                className="atlas-input"
+                placeholder="e.g. headcount_female"
+                value={customCode}
+                onChange={(e) => setCustomCode(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="atlas-label">Metric name</label>
+              <input
+                className="atlas-input"
+                placeholder="e.g. Female employees"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="atlas-label">Pillar</label>
+              <select className="atlas-input" value={pillar} onChange={(e) => setPillar(e.target.value)}>
+                <option value="environmental">Environmental</option>
+                <option value="social">Social</option>
+                <option value="governance">Governance</option>
+              </select>
+            </div>
+          </>
+        )}
+
+        <div>
+          <label className="atlas-label">Value</label>
+          <input
+            type="number"
+            className="atlas-input"
+            placeholder="e.g. 12500"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <label className="atlas-label">Unit</label>
+          <input
+            className="atlas-input"
+            placeholder="e.g. kWh, tCO2e, %"
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+          />
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className="atlas-label">Evidence note <span className="text-text-muted font-normal">(optional)</span></label>
+          <input
+            className="atlas-input"
+            placeholder="e.g. From ERP system export Q4 2024, file: energy_report.xlsx"
+            value={evidenceNote}
+            onChange={(e) => setEvidenceNote(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="flex gap-2 pt-1">
+        <button
+          disabled={!canSave || saving}
+          onClick={() => void handleSave()}
+          className="flex items-center gap-1.5 bg-atlas-600 hover:bg-atlas-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-[12px] font-bold transition-colors"
+        >
+          <span className="material-symbols-outlined text-[15px]">
+            {saving ? "progress_activity" : "check"}
+          </span>
+          {saving ? "Saving…" : "Save metric"}
+        </button>
+        <button
+          onClick={onClose}
+          className="px-4 py-2 rounded-lg text-[12px] font-medium text-text-secondary hover:bg-border/50 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** Generate fake 12-month sparkline data anchored to a final value */
 function generateSparkline(finalValue: number, months = 12): number[] {
   if (finalValue === 0) return Array(months).fill(0);
@@ -130,6 +314,8 @@ export function MetricsDashboard() {
   const [selectedMetricId, setSelectedMetricId] = useState<string>("");
   const [selectedExtractionId, setSelectedExtractionId] = useState<string>("");
   const [technicalDrawerOpen, setTechnicalDrawerOpen] = useState(false);
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [metricDefinitions, setMetricDefinitions] = useState<MetricDefinition[]>([]);
 
   useEffect(() => {
     if (!workspaceId || !activeCompanyId) return;
@@ -157,6 +343,15 @@ export function MetricsDashboard() {
       .then((res) => setInsight(res))
       .catch(console.error)
       .finally(() => setInsightLoading(false));
+
+    apiClient<{ data?: any[]; items?: any[] }>(`/metrics/targets`)
+      .then((res: any) => {
+        const items = (res.data || res.items || res || []) as any[];
+        setMetricDefinitions(
+          items.map((d: any) => ({ key: d.key, description: d.description, unit: d.unit, pillar: d.pillar }))
+        );
+      })
+      .catch(console.error);
   }, [workspaceId, activeCompanyId]);
 
   const summaryCards = useMemo(() => summary?.cards || [], [summary]);
@@ -302,6 +497,14 @@ export function MetricsDashboard() {
           <Button variant="ghost" className="bg-white border-border" onClick={() => window.location.reload()}>
             <span className="material-symbols-outlined text-[18px]">refresh</span>
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => setShowManualEntry((v) => !v)}
+            className="border-atlas-300 text-atlas-700 hover:bg-atlas-50"
+          >
+            <span className="material-symbols-outlined text-[16px]">edit_note</span>
+            Enter manually
+          </Button>
           {!allApproved && metrics.length > 0 && (
             <Button
               variant="outline"
@@ -325,6 +528,21 @@ export function MetricsDashboard() {
           </Button>
         </div>
       </header>
+
+      {showManualEntry && activeCompanyId && workspaceId && (
+        <ManualEntryPanel
+          companyId={activeCompanyId}
+          workspaceId={workspaceId}
+          definitions={metricDefinitions}
+          onSaved={(saved) => setMetrics((prev) => {
+            const exists = prev.findIndex((m) => m.id === saved.id);
+            return exists >= 0
+              ? prev.map((m) => (m.id === saved.id ? saved : m))
+              : [saved, ...prev];
+          })}
+          onClose={() => setShowManualEntry(false)}
+        />
+      )}
 
       {!loading && summaryCards.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 stagger-fade">

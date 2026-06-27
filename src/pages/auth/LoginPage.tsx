@@ -47,6 +47,8 @@ export function LoginPage() {
       // Route based on role
       if (data.user.role === "system_admin") {
         navigate("/admin");
+      } else if (data.user.role === "system_audit_officer") {
+        navigate("/audit");
       } else {
         if (data.user.company_id) {
           setActiveCompany(data.user.company_id);
@@ -196,7 +198,7 @@ export function LoginPage() {
                   type="email"
                   required
                   className="atlas-input !pl-10 !bg-white/90"
-                  placeholder="admin@sustainability.ai"
+                  placeholder="you@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   id="login-email"

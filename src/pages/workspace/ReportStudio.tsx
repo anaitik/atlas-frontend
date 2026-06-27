@@ -285,6 +285,7 @@ export function ReportStudio() {
   const [showLineage, setShowLineage] = useState(false);
   const [activePillarFilter, setActivePillarFilter] = useState<string>("all");
   const [reportVerifications, setReportVerifications] = useState<Record<string, any>>({});
+  const [interviewProgress, setInterviewProgress] = useState<{ approved: number; total_questions: number; completion_pct: number } | null>(null);
   const docRef = useRef<HTMLDivElement>(null);
 
   const activeReport = selectedReportId
@@ -338,7 +339,15 @@ export function ReportStudio() {
   useEffect(() => {
     void fetchQuestions();
     void fetchReports();
-  }, [fetchQuestions, fetchReports]);
+    if (workspaceId) {
+      apiClient<any>(`/interview/workspace/${workspaceId}/progress`)
+        .then((res: any) => {
+          const d = res?.data ?? res;
+          if (d && typeof d.total_questions === "number") setInterviewProgress(d);
+        })
+        .catch(() => {});
+    }
+  }, [fetchQuestions, fetchReports, workspaceId]);
 
   const hasActiveVerification = useMemo(() => {
     if (!activeReport?.id) return false;
@@ -675,6 +684,33 @@ export function ReportStudio() {
               );
             })}
           </div>
+
+          {/* VSME Interview link */}
+          {interviewProgress !== null && (
+            <a
+              href={`/w/${workspaceId}/collect`}
+              style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
+                borderRadius: 10, border: "1px solid",
+                borderColor: interviewProgress.completion_pct === 100 ? "#bbf7d0" : "#bfdbfe",
+                background: interviewProgress.completion_pct === 100 ? "#f0fdf4" : "#eff6ff",
+                textDecoration: "none", flexShrink: 0, cursor: "pointer",
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 18, color: interviewProgress.completion_pct === 100 ? "#16a34a" : "#2563eb" }}>
+                {interviewProgress.completion_pct === 100 ? "check_circle" : "quiz"}
+              </span>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: interviewProgress.completion_pct === 100 ? "#166534" : "#1d4ed8", margin: 0 }}>
+                  ESG Interview · {interviewProgress.approved}/{interviewProgress.total_questions}
+                </p>
+                <div style={{ height: 3, background: interviewProgress.completion_pct === 100 ? "#dcfce7" : "#dbeafe", borderRadius: 3, marginTop: 4, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${interviewProgress.completion_pct}%`, background: interviewProgress.completion_pct === 100 ? "#22c55e" : "#3b82f6", borderRadius: 3 }} />
+                </div>
+              </div>
+              <span className="material-symbols-outlined" style={{ fontSize: 14, color: "#94a3b8" }}>arrow_forward</span>
+            </a>
+          )}
 
           {/* Pillar filter */}
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap", flexShrink: 0 }}>
